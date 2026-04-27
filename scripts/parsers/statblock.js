@@ -319,6 +319,43 @@ class StatblockParser {
                 }
             }
 
+            // ---- Extract Template from parentheses on class line ----
+            // e.g. "Cleric 1 Wizard 1 (Half-Dragon Template +3)"
+            if (classLine) {
+                const templateParenMatch = classLine.match(/\(([^)]*Template[^)]*)\)/i);
+                if (templateParenMatch) {
+                    const templateStr = templateParenMatch[1].trim();
+                    // Extract name and optional level: "Half-Dragon Template +3" or "Lich Template"
+                    const tMatch = templateStr.match(/^(.+?)(?:\s+\+?(\d+))?$/);
+                    if (tMatch) {
+                        const tName = tMatch[1].trim();
+                        const tLevel = tMatch[2] ? parseInt(tMatch[2]) : 0;
+                        console.log(`D35E Importer | Found template in parentheses: ${tName} (level adj: ${tLevel})`);
+                        updateData.items.push({
+                            name: tName,
+                            type: "class",
+                            system: {
+                                levels: 1,
+                                classType: "template",
+                                hd: 0,
+                                hp: 0,
+                                bab: "~",
+                                skillsPerLevel: 0,
+                                savingThrows: {
+                                    fort: { value: "low" },
+                                    ref: { value: "low" },
+                                    will: { value: "low" }
+                                },
+                                crOffset: tLevel,
+                                description: { value: `Template: ${tName} (CR adjustment +${tLevel})` }
+                            }
+                        });
+                    }
+                    // Remove template parenthetical from classLine so it doesn't confuse class parsing
+                    classLine = classLine.replace(/\s*\([^)]*Template[^)]*\)/i, '').trim();
+                }
+            }
+
             // ---- Extract Classes and Levels ----
             let totalLevel = 0;
             const foundClasses = new Set();
@@ -636,11 +673,19 @@ class StatblockParser {
             }
 
             // ---- Special Qualities ----
+            // Track existing feat names to avoid duplicates
+            const existingItemNames = new Set(updateData.items.map(i => (i.name || '').toLowerCase()));
             const sqMatch = linesText.match(/(?:Special\s+Qualities|SQ):?\s+(.+?)(?=\n(?:Feats|Skills|Possessions|$)|\n\n)/is);
             if (sqMatch) {
                 for (const sq of StatblockParser._splitOnCommas(sqMatch[1].replace(/\n/g, ', '))) {
                     const t = sq.trim();
                     if (!t || t.match(/^(Feats|Skills|Possessions)/i)) break;
+                    // Skip if this SQ name already exists as a feat (avoid duplicates)
+                    if (existingItemNames.has(t.toLowerCase())) {
+                        console.log(`D35E Importer | Skipping duplicate SQ: ${t} (already exists as feat)`);
+                        continue;
+                    }
+                    existingItemNames.add(t.toLowerCase());
                     updateData.items.push({
                         name: t, type: "feat",
                         system: { featType: "classFeat", abilityType: "ex", description: { value: "Special Quality" } }
@@ -656,7 +701,7 @@ class StatblockParser {
             }
 
             // ---- Melee Attacks ----
-            const meleeMatch = linesText.match(/Melee:?\s+(.+?)(?=\n(?:Ranged|Space|Special|Spell-Like|Spells|Abilities|Str\b)|$)/is);
+            const meleeMatch = linesText.match(/Melee(?:\s+weapon)?:?\s+(.+?)(?=\n(?:Ranged|Space|Special|Spell-Like|Spells|Abilities|Str\b|Base\s+Atk|Atk\s+Options|Combat\s+Gear)|$)/is);
             if (meleeMatch) {
                 const meleeAttacks = StatblockParser._parseAttackLine(meleeMatch[1], 'mwak');
                 for (const atk of meleeAttacks) {
@@ -674,11 +719,18 @@ class StatblockParser {
             }
 
             // ---- Possessions / Equipment ----
-            const possMatch = linesText.match(/(?:Possessions|Gear|Other Gear|Combat Gear|Equipment):?\s+(.+?)(?=\n(?:Spells|Special|Languages|Feats|Skills|$)|$)/is);
+            // Only match "Possessions" (not "Combat Gear" which appears before spells)
+            // Use strict stop conditions to prevent leaking into spell/ability sections
+            const possMatch = linesText.match(/Possessions:?\s+(.+?)(?=\n(?:Spells|Special|Languages|Feats|Skills|Abilities|SQ|\w+\s+Spells|$)|\n\n)/is);
             if (possMatch) {
-                const possItems = StatblockParser._parsePossessions(possMatch[1].replace(/\n/g, ', '));
-                for (const item of possItems) {
-                    updateData.items.push(item);
+                let possText = possMatch[1].replace(/\n/g, ', ');
+                // Filter out "combat gear plus" prefix and "(none)" entries
+                possText = possText.replace(/combat\s+gear\s+plus\s*/i, '').trim();
+                if (possText && !/^\(none\)$/i.test(possText.trim()) && possText.length > 1) {
+                    const possItems = StatblockParser._parsePossessions(possText);
+                    for (const item of possItems) {
+                        updateData.items.push(item);
+                    }
                 }
             }
 
@@ -825,7 +877,17 @@ class StatblockParser {
             entry = entry.trim();
             if (!entry || entry.length > 120) continue;
             // Stop if we hit another section header
-            if (/^(Spells|Special|Languages|Feats|Skills|Str\b|Dex\b|Con\b)/i.test(entry)) break;
+            if (/^(Spells|Special|Languages|Feats|Skills|Str\b|Dex\b|Con\b|Abilities\b|SQ\b)/i.test(entry)) break;
+            // Skip junk entries
+            if (/^\(none\)$/i.test(entry)) continue;
+            if (/^(none|money|combat\s+gear)$/i.test(entry)) continue;
+            // Skip spell section lines that leaked through
+            if (/Spells\s+Prepared/i.test(entry)) continue;
+            if (/^\d+\s*\(DC\s+\d+/i.test(entry)) continue;
+            if (/^\(\d+\)\s*\(DC/i.test(entry)) continue;
+            // Skip "(Free)" qualifier items only if they're just outfit placeholders
+            entry = entry.replace(/\s*\(Free\)/i, '').trim();
+            if (!entry) continue;
 
             // Extract quantity: "potion of cure light wounds (x2)" or "(2)"
             let quantity = 1;
