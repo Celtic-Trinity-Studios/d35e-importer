@@ -220,8 +220,19 @@ class D35EImporterDialog extends Application {
                 }
 
                 console.log(`D35E Importer | Creating ${finalItemsToCreate.length} embedded items...`);
-                const createdItems = await targetActor.createEmbeddedDocuments("Item", finalItemsToCreate);
-                console.log("D35E Importer | Embedded items created successfully.");
+                // Create items one at a time so a single failure doesn't block the rest
+                const createdItems = [];
+                for (const itemData of finalItemsToCreate) {
+                    try {
+                        const result = await targetActor.createEmbeddedDocuments("Item", [itemData], {stopUpdates: true});
+                        if (result && result.length > 0) createdItems.push(result[0]);
+                    } catch(e) {
+                        console.warn(`D35E Importer | Failed to create item '${itemData.name}': ${e.message}`);
+                    }
+                }
+                // Trigger a single refresh after all items are created
+                try { await targetActor.update({}); } catch(e) {}
+                console.log(`D35E Importer | Created ${createdItems.length}/${finalItemsToCreate.length} embedded items.`);
 
                 // Automatically map levelUpData for the actor based on imported classes
                 const classItems = createdItems.filter(i => i.type === "class");
