@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-$version = "v1.5.4"
+$version = "v1.5.5"
 
 # Get git credentials
 $credInput = @"
