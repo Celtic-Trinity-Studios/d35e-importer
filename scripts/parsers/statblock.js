@@ -177,8 +177,13 @@ class StatblockParser {
         'mithral full plate':  { equipmentSubtype:'heavyArmor', acBonus:8, maxDex:3, acp:-3, spellFailure:15, weight:25, price:10500 },
     };
 
-    static async parse(textData, classIndex = null) {
+    static async parse(textData, gameIndex = null) {
         console.log("D35E Importer | Parsing Hero Lab Statblock...");
+        
+        // Extract indexes from gameIndex
+        const classIndex = gameIndex?.classIndex || null;
+        const srdRaceNames = gameIndex?.raceNames || new Set();
+        const srdItemTypes = gameIndex?.itemTypes || new Map();
 
         // Strip <title> tag content and <style> blocks before processing
         let cleanedHtml = textData.replace(/<title[^>]*>.*?<\/title>/gis, '')
@@ -221,7 +226,6 @@ class StatblockParser {
             });
 
             // Merge hardcoded CLASS_DATA with dynamic classIndex from compendiums
-            // Compendium data takes priority
             const allClassNames = new Set(Object.keys(StatblockParser.CLASS_DATA));
             if (classIndex) {
                 for (const name of classIndex.keys()) {
@@ -229,6 +233,13 @@ class StatblockParser {
                 }
             }
             const allClassNamesArr = Array.from(allClassNames);
+            
+            // Merge hardcoded RACES with dynamic race names from compendiums
+            const allRaceNames = new Set(StatblockParser.RACES.map(r => r.toLowerCase()));
+            for (const rn of srdRaceNames) {
+                allRaceNames.add(rn);
+            }
+            const allRaceNamesArr = Array.from(allRaceNames);
 
             // ---- Extract Character Name ----
             // First meaningful line is usually the name, possibly with "CR X"
@@ -283,9 +294,11 @@ class StatblockParser {
             if (classLine) {
                 // Remove gender prefix
                 let racePart = classLine.replace(/^(Male|Female)\s+/i, '');
-                // Try to identify race by checking known races
+                // Try to identify race from SRD compendiums + hardcoded list
                 let foundRace = null;
-                for (const race of StatblockParser.RACES) {
+                // Sort by length descending so multi-word races match first (e.g. "Half-Elf" before "Elf")
+                const sortedRaces = allRaceNamesArr.sort((a, b) => b.length - a.length);
+                for (const race of sortedRaces) {
                     const raceRegex = new RegExp('^' + race.replace(/-/g, '[-\\s]?') + '\\b', 'i');
                     if (raceRegex.test(racePart)) {
                         foundRace = race;
@@ -293,9 +306,10 @@ class StatblockParser {
                     }
                 }
                 if (foundRace) {
-                    const displayRace = foundRace.split(/[-\s]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-');
+                    const displayRace = foundRace.split(/[-\s]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    console.log(`D35E Importer | Matched race: ${displayRace} (source: ${srdRaceNames.has(foundRace.toLowerCase()) ? 'compendium' : 'hardcoded'})`);
                     updateData.items.push({
-                        name: displayRace.replace('-', ' '),
+                        name: displayRace,
                         type: "race",
                         system: {
                             creatureType: "humanoid",
@@ -360,7 +374,7 @@ class StatblockParser {
                 // This handles classes not in any source (e.g. homebrew not yet added)
                 let remaining = classLine;
                 remaining = remaining.replace(/^(Male|Female)\s+/i, '');
-                for (const race of StatblockParser.RACES) {
+                for (const race of allRaceNamesArr) {
                     remaining = remaining.replace(new RegExp('\\b' + race.replace(/-/g, '[-\\s]?') + '\\b', 'i'), '');
                 }
                 remaining = remaining.replace(/\b(LG|NG|CG|LN|TN|CN|LE|NE|CE)\b/g, '');
@@ -408,7 +422,7 @@ class StatblockParser {
                 if (classIndex) {
                     let templateCheck = classLine;
                     templateCheck = templateCheck.replace(/^(Male|Female)\s+/i, '');
-                    for (const race of StatblockParser.RACES) {
+                    for (const race of allRaceNamesArr) {
                         templateCheck = templateCheck.replace(new RegExp('\\b' + race.replace(/-/g, '[-\\s]?') + '\\b', 'i'), '');
                     }
                     // Remove already-found classes and their levels

@@ -106,9 +106,9 @@ class D35EImporterDialog extends Application {
                     updateData = await HeroLabXMLParser.parse(jsonText);
                 } else if (jsonText.includes('Init') || jsonText.includes('<html')) {
                     // Assume HTML or Text Statblock
-                    // Build a dynamic class name index from compendiums + world items
-                    const classIndex = await D35EImporterDialog._buildClassIndex();
-                    updateData = await StatblockParser.parse(jsonText, classIndex);
+                    // Build a comprehensive index from compendiums + world items
+                    const gameIndex = await D35EImporterDialog._buildGameIndex();
+                    updateData = await StatblockParser.parse(jsonText, gameIndex);
                 } else {
                     // Assume JSON
                     updateData = JSON.parse(jsonText);
@@ -319,59 +319,70 @@ class D35EImporterDialog extends Application {
     }
 
     /**
-     * Build a dynamic class name index from all compendiums and world items.
-     * Returns a Map of lowercase class name -> { hd, hp, bab, skillsPerLevel, fort, ref, will, classType }
+     * Build a comprehensive game index from all compendiums and world items.
+     * Returns { classIndex, raceNames, itemTypes }
+     *   classIndex: Map of lowercase class name -> { hd, hp, bab, skillsPerLevel, fort, ref, will, classType }
+     *   raceNames: Set of lowercase race names from compendiums
+     *   itemTypes: Map of lowercase item name -> item type (for classification)
      */
-    static async _buildClassIndex() {
+    static async _buildGameIndex() {
         const classIndex = new Map();
+        const raceNames = new Set();
+        const itemTypes = new Map();
         
         // 1. Scan world items
         for (const item of game.items) {
-            if (item.type === "class") {
-                const name = item.name.toLowerCase();
-                if (!classIndex.has(name)) {
-                    classIndex.set(name, {
-                        hd: item.system?.hd || 8,
-                        hp: item.system?.hp || item.system?.hd || 8,
-                        bab: item.system?.bab || "med",
-                        skillsPerLevel: item.system?.skillsPerLevel || 4,
-                        fort: item.system?.savingThrows?.fort?.value || "low",
-                        ref: item.system?.savingThrows?.ref?.value || "low",
-                        will: item.system?.savingThrows?.will?.value || "high",
-                        classType: item.system?.classType || "base"
-                    });
-                }
+            const name = item.name.toLowerCase();
+            if (item.type === "class" && !classIndex.has(name)) {
+                classIndex.set(name, {
+                    hd: item.system?.hd || 8,
+                    hp: item.system?.hp || item.system?.hd || 8,
+                    bab: item.system?.bab || "med",
+                    skillsPerLevel: item.system?.skillsPerLevel || 4,
+                    fort: item.system?.savingThrows?.fort?.value || "low",
+                    ref: item.system?.savingThrows?.ref?.value || "low",
+                    will: item.system?.savingThrows?.will?.value || "high",
+                    classType: item.system?.classType || "base"
+                });
             }
+            if (item.type === "race") raceNames.add(name);
+            if (!itemTypes.has(name)) itemTypes.set(name, item.type);
         }
         
         // 2. Scan all Item compendiums
         const packs = game.packs.filter(p => p.metadata.type === "Item");
         for (const pack of packs) {
             try {
-                const index = await pack.getIndex({fields: ["name", "type", "system.hd", "system.hp", "system.bab", "system.skillsPerLevel", "system.savingThrows", "system.classType"]});
+                const index = await pack.getIndex({fields: [
+                    "name", "type", 
+                    "system.hd", "system.hp", "system.bab", "system.skillsPerLevel", 
+                    "system.savingThrows", "system.classType",
+                    "system.creatureType"
+                ]});
                 for (const entry of index) {
-                    if (entry.type === "class") {
-                        const name = entry.name.toLowerCase();
-                        if (!classIndex.has(name)) {
-                            classIndex.set(name, {
-                                hd: entry.system?.hd || 8,
-                                hp: entry.system?.hp || entry.system?.hd || 8,
-                                bab: entry.system?.bab || "med",
-                                skillsPerLevel: entry.system?.skillsPerLevel || 4,
-                                fort: entry.system?.savingThrows?.fort?.value || "low",
-                                ref: entry.system?.savingThrows?.ref?.value || "low",
-                                will: entry.system?.savingThrows?.will?.value || "high",
-                                classType: entry.system?.classType || "base"
-                            });
-                        }
+                    const name = entry.name.toLowerCase();
+                    
+                    if (entry.type === "class" && !classIndex.has(name)) {
+                        classIndex.set(name, {
+                            hd: entry.system?.hd || 8,
+                            hp: entry.system?.hp || entry.system?.hd || 8,
+                            bab: entry.system?.bab || "med",
+                            skillsPerLevel: entry.system?.skillsPerLevel || 4,
+                            fort: entry.system?.savingThrows?.fort?.value || "low",
+                            ref: entry.system?.savingThrows?.ref?.value || "low",
+                            will: entry.system?.savingThrows?.will?.value || "high",
+                            classType: entry.system?.classType || "base"
+                        });
                     }
+                    if (entry.type === "race") raceNames.add(name);
+                    if (!itemTypes.has(name)) itemTypes.set(name, entry.type);
                 }
             } catch(e) {
                 // Skip packs that can't be indexed
             }
         }
         
-        console.log(`D35E Importer | Built class index with ${classIndex.size} classes from compendiums and world items.`);
-        return classIndex;
+        console.log(`D35E Importer | Game index: ${classIndex.size} classes, ${raceNames.size} races, ${itemTypes.size} total items from compendiums and world.`);
+        return { classIndex, raceNames, itemTypes };
     }
 }
