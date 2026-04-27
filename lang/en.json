@@ -1,0 +1,15 @@
+{
+  "D35EImporter.ImportButton": "Import Character",
+  "D35EImporter.ImportToActor": "Import Data to this Actor",
+  "D35EImporter.DialogTitle": "D35E Character Importer",
+  "D35EImporter.DialogInstructions": "Select a file to import, or paste your character data below. Note: Depending on the format, some manual adjustments may be necessary.",
+  "D35EImporter.TargetActor": "Target Actor",
+  "D35EImporter.FileLabel": "Character File",
+  "D35EImporter.OrPasteData": "Or paste data below",
+  "D35EImporter.TextLabel": "Raw Data",
+  "D35EImporter.TextPlaceholder": "Paste JSON/XML data here...",
+  "D35EImporter.NoDataWarn": "Please select a file or paste data to import.",
+  "D35EImporter.ImportStarted": "Importing character data...",
+  "D35EImporter.ImportSuccess": "Character imported successfully!",
+  "D35EImporter.ImportError": "Failed to import character. See console for details."
+}

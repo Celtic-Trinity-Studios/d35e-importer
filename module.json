@@ -1,0 +1,40 @@
+{
+  "id": "d35e-importer",
+  "title": "D35E Character Importer",
+  "description": "A module to import character data into the D35E system from Hero Lab, PCGen, and PDF.",
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": "11",
+    "verified": "12"
+  },
+  "authors": [
+    {
+      "name": "User"
+    }
+  ],
+  "systems": [
+    {
+      "id": "D35E",
+      "type": "system",
+      "manifest": "https://github.com/Dragonshorn/D35E/releases/latest/download/system.json",
+      "compatibility": {
+        "minimum": "0.1.0"
+      }
+    }
+  ],
+  "scripts": [
+    "scripts/lib/jszip.min.js",
+    "scripts/lib/pdf.min.js",
+    "scripts/parsers/herolab-xml.js",
+    "scripts/parsers/pdf-text.js",
+    "scripts/main.js",
+    "scripts/importer.js"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ]
+}

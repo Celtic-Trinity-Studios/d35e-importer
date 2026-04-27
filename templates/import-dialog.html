@@ -1,0 +1,34 @@
+<form class="d35e-importer-form" autocomplete="off">
+    <div class="form-group">
+        <p class="notes">{{localize "D35EImporter.DialogInstructions"}}</p>
+    </div>
+    
+    {{#if actor}}
+    <div class="form-group">
+        <p><strong>{{localize "D35EImporter.TargetActor"}}:</strong> {{actor.name}}</p>
+    </div>
+    {{/if}}
+
+    <div class="form-group">
+        <label for="d35e-import-file">{{localize "D35EImporter.FileLabel"}}</label>
+        <div class="form-fields">
+            <input type="file" id="d35e-import-file" name="file" accept=".json,.xml,.txt,.por">
+        </div>
+    </div>
+    
+    <hr>
+    <div class="form-group">
+        <p class="notes" style="text-align: center;">-- {{localize "D35EImporter.OrPasteData"}} --</p>
+    </div>
+
+    <div class="form-group stacked">
+        <label for="d35e-import-text">{{localize "D35EImporter.TextLabel"}}</label>
+        <textarea id="d35e-import-text" name="textData" rows="6" placeholder="{{localize 'D35EImporter.TextPlaceholder'}}"></textarea>
+    </div>
+
+    <div class="form-group">
+        <button type="button" id="d35e-import-submit">
+            <i class="fas fa-file-import"></i> {{localize "D35EImporter.ImportButton"}}
+        </button>
+    </div>
+</form>
