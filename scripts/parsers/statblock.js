@@ -68,6 +68,102 @@ class StatblockParser {
         'goliath', 'raptorian', 'hadozee', 'catfolk', 'ratfolk'
     ];
 
+    // Weapon database: name -> { weaponType, weaponSubtype, damageRoll, critRange, critMult, damageType, range }
+    static WEAPON_DATA = {
+        'dagger':           { weaponType:'simple', weaponSubtype:'light', damage:'1d4', critRange:'19', critMult:2, damageType:'Piercing', range:10 },
+        'punching dagger':  { weaponType:'simple', weaponSubtype:'light', damage:'1d4', critRange:'20', critMult:3, damageType:'Piercing' },
+        'spiked gauntlet':  { weaponType:'simple', weaponSubtype:'light', damage:'1d4', critRange:'20', critMult:2, damageType:'Piercing' },
+        'light mace':       { weaponType:'simple', weaponSubtype:'light', damage:'1d6', critRange:'20', critMult:2, damageType:'Bludgeoning' },
+        'sickle':           { weaponType:'simple', weaponSubtype:'light', damage:'1d6', critRange:'20', critMult:2, damageType:'Slashing' },
+        'club':             { weaponType:'simple', weaponSubtype:'1h', damage:'1d6', critRange:'20', critMult:2, damageType:'Bludgeoning', range:10 },
+        'heavy mace':       { weaponType:'simple', weaponSubtype:'1h', damage:'1d8', critRange:'20', critMult:2, damageType:'Bludgeoning' },
+        'morningstar':      { weaponType:'simple', weaponSubtype:'1h', damage:'1d8', critRange:'20', critMult:2, damageType:'Bludgeoning and Piercing' },
+        'shortspear':       { weaponType:'simple', weaponSubtype:'1h', damage:'1d6', critRange:'20', critMult:2, damageType:'Piercing', range:20 },
+        'longspear':        { weaponType:'simple', weaponSubtype:'2h', damage:'1d8', critRange:'20', critMult:3, damageType:'Piercing' },
+        'quarterstaff':     { weaponType:'simple', weaponSubtype:'2h', damage:'1d6', critRange:'20', critMult:2, damageType:'Bludgeoning' },
+        'spear':            { weaponType:'simple', weaponSubtype:'2h', damage:'1d8', critRange:'20', critMult:3, damageType:'Piercing', range:20 },
+        'crossbow, heavy':  { weaponType:'simple', weaponSubtype:'ranged', damage:'1d10', critRange:'19', critMult:2, damageType:'Piercing', range:120 },
+        'heavy crossbow':   { weaponType:'simple', weaponSubtype:'ranged', damage:'1d10', critRange:'19', critMult:2, damageType:'Piercing', range:120 },
+        'crossbow, light':  { weaponType:'simple', weaponSubtype:'ranged', damage:'1d8', critRange:'19', critMult:2, damageType:'Piercing', range:80 },
+        'light crossbow':   { weaponType:'simple', weaponSubtype:'ranged', damage:'1d8', critRange:'19', critMult:2, damageType:'Piercing', range:80 },
+        'dart':             { weaponType:'simple', weaponSubtype:'ranged', damage:'1d4', critRange:'20', critMult:2, damageType:'Piercing', range:20 },
+        'javelin':          { weaponType:'simple', weaponSubtype:'ranged', damage:'1d6', critRange:'20', critMult:2, damageType:'Piercing', range:30 },
+        'sling':            { weaponType:'simple', weaponSubtype:'ranged', damage:'1d4', critRange:'20', critMult:2, damageType:'Bludgeoning', range:50 },
+        'handaxe':          { weaponType:'martial', weaponSubtype:'light', damage:'1d6', critRange:'20', critMult:3, damageType:'Slashing' },
+        'kukri':            { weaponType:'martial', weaponSubtype:'light', damage:'1d4', critRange:'18', critMult:2, damageType:'Slashing' },
+        'light hammer':     { weaponType:'martial', weaponSubtype:'light', damage:'1d4', critRange:'20', critMult:2, damageType:'Bludgeoning', range:20 },
+        'light pick':       { weaponType:'martial', weaponSubtype:'light', damage:'1d4', critRange:'20', critMult:4, damageType:'Piercing' },
+        'sap':              { weaponType:'martial', weaponSubtype:'light', damage:'1d6', critRange:'20', critMult:2, damageType:'Bludgeoning' },
+        'short sword':      { weaponType:'martial', weaponSubtype:'light', damage:'1d6', critRange:'19', critMult:2, damageType:'Piercing' },
+        'battleaxe':        { weaponType:'martial', weaponSubtype:'1h', damage:'1d8', critRange:'20', critMult:3, damageType:'Slashing' },
+        'flail':            { weaponType:'martial', weaponSubtype:'1h', damage:'1d8', critRange:'20', critMult:2, damageType:'Bludgeoning' },
+        'longsword':        { weaponType:'martial', weaponSubtype:'1h', damage:'1d8', critRange:'19', critMult:2, damageType:'Slashing' },
+        'heavy pick':       { weaponType:'martial', weaponSubtype:'1h', damage:'1d6', critRange:'20', critMult:4, damageType:'Piercing' },
+        'rapier':           { weaponType:'martial', weaponSubtype:'1h', damage:'1d6', critRange:'18', critMult:2, damageType:'Piercing' },
+        'scimitar':         { weaponType:'martial', weaponSubtype:'1h', damage:'1d6', critRange:'18', critMult:2, damageType:'Slashing' },
+        'trident':          { weaponType:'martial', weaponSubtype:'1h', damage:'1d8', critRange:'20', critMult:2, damageType:'Piercing', range:10 },
+        'warhammer':        { weaponType:'martial', weaponSubtype:'1h', damage:'1d8', critRange:'20', critMult:3, damageType:'Bludgeoning' },
+        'falchion':         { weaponType:'martial', weaponSubtype:'2h', damage:'2d4', critRange:'18', critMult:2, damageType:'Slashing' },
+        'glaive':           { weaponType:'martial', weaponSubtype:'2h', damage:'1d10', critRange:'20', critMult:3, damageType:'Slashing' },
+        'greataxe':         { weaponType:'martial', weaponSubtype:'2h', damage:'1d12', critRange:'20', critMult:3, damageType:'Slashing' },
+        'greatclub':        { weaponType:'martial', weaponSubtype:'2h', damage:'1d10', critRange:'20', critMult:2, damageType:'Bludgeoning' },
+        'greatsword':       { weaponType:'martial', weaponSubtype:'2h', damage:'2d6', critRange:'19', critMult:2, damageType:'Slashing' },
+        'guisarme':         { weaponType:'martial', weaponSubtype:'2h', damage:'2d4', critRange:'20', critMult:3, damageType:'Slashing' },
+        'halberd':          { weaponType:'martial', weaponSubtype:'2h', damage:'1d10', critRange:'20', critMult:3, damageType:'Piercing or Slashing' },
+        'lance':            { weaponType:'martial', weaponSubtype:'2h', damage:'1d8', critRange:'20', critMult:3, damageType:'Piercing' },
+        'ranseur':          { weaponType:'martial', weaponSubtype:'2h', damage:'2d4', critRange:'20', critMult:3, damageType:'Piercing' },
+        'scythe':           { weaponType:'martial', weaponSubtype:'2h', damage:'2d4', critRange:'20', critMult:4, damageType:'Piercing or Slashing' },
+        'longbow':          { weaponType:'martial', weaponSubtype:'ranged', damage:'1d8', critRange:'20', critMult:3, damageType:'Piercing', range:100 },
+        'composite longbow':{ weaponType:'martial', weaponSubtype:'ranged', damage:'1d8', critRange:'20', critMult:3, damageType:'Piercing', range:110 },
+        'shortbow':         { weaponType:'martial', weaponSubtype:'ranged', damage:'1d6', critRange:'20', critMult:3, damageType:'Piercing', range:60 },
+        'composite shortbow':{ weaponType:'martial', weaponSubtype:'ranged', damage:'1d6', critRange:'20', critMult:3, damageType:'Piercing', range:70 },
+        'bastard sword':    { weaponType:'exotic', weaponSubtype:'1h', damage:'1d10', critRange:'19', critMult:2, damageType:'Slashing' },
+        'dwarven waraxe':   { weaponType:'exotic', weaponSubtype:'1h', damage:'1d10', critRange:'20', critMult:3, damageType:'Slashing' },
+        'whip':             { weaponType:'exotic', weaponSubtype:'1h', damage:'1d3', critRange:'20', critMult:2, damageType:'Slashing' },
+        'spiked chain':     { weaponType:'exotic', weaponSubtype:'2h', damage:'2d4', critRange:'20', critMult:2, damageType:'Piercing' },
+        'hand crossbow':    { weaponType:'exotic', weaponSubtype:'ranged', damage:'1d4', critRange:'19', critMult:2, damageType:'Piercing', range:30 },
+        'repeating heavy crossbow': { weaponType:'exotic', weaponSubtype:'ranged', damage:'1d10', critRange:'19', critMult:2, damageType:'Piercing', range:120 },
+        'repeating light crossbow': { weaponType:'exotic', weaponSubtype:'ranged', damage:'1d8', critRange:'19', critMult:2, damageType:'Piercing', range:80 },
+        'net':              { weaponType:'exotic', weaponSubtype:'ranged', damage:'', critRange:'20', critMult:2, damageType:'', range:10 },
+        'shuriken':         { weaponType:'exotic', weaponSubtype:'ranged', damage:'1d2', critRange:'20', critMult:2, damageType:'Piercing', range:10 },
+        'kama':             { weaponType:'exotic', weaponSubtype:'light', damage:'1d6', critRange:'20', critMult:2, damageType:'Slashing' },
+        'nunchaku':         { weaponType:'exotic', weaponSubtype:'light', damage:'1d6', critRange:'20', critMult:2, damageType:'Bludgeoning' },
+        'siangham':         { weaponType:'exotic', weaponSubtype:'light', damage:'1d6', critRange:'20', critMult:2, damageType:'Piercing' },
+    };
+
+    // Armor database: name -> { equipmentType, equipmentSubtype, acBonus, maxDex, acp, spellFailure, weight, price }
+    static ARMOR_DATA = {
+        'padded':           { equipmentSubtype:'lightArmor', acBonus:1, maxDex:8, acp:0, spellFailure:5, weight:10, price:5 },
+        'padded armor':     { equipmentSubtype:'lightArmor', acBonus:1, maxDex:8, acp:0, spellFailure:5, weight:10, price:5 },
+        'leather':          { equipmentSubtype:'lightArmor', acBonus:2, maxDex:6, acp:0, spellFailure:10, weight:15, price:10 },
+        'leather armor':    { equipmentSubtype:'lightArmor', acBonus:2, maxDex:6, acp:0, spellFailure:10, weight:15, price:10 },
+        'studded leather':  { equipmentSubtype:'lightArmor', acBonus:3, maxDex:5, acp:-1, spellFailure:15, weight:20, price:25 },
+        'chain shirt':      { equipmentSubtype:'lightArmor', acBonus:4, maxDex:4, acp:-2, spellFailure:20, weight:25, price:100 },
+        'hide':             { equipmentSubtype:'mediumArmor', acBonus:3, maxDex:4, acp:-3, spellFailure:20, weight:25, price:15 },
+        'hide armor':       { equipmentSubtype:'mediumArmor', acBonus:3, maxDex:4, acp:-3, spellFailure:20, weight:25, price:15 },
+        'scale mail':       { equipmentSubtype:'mediumArmor', acBonus:4, maxDex:3, acp:-4, spellFailure:25, weight:30, price:50 },
+        'chainmail':        { equipmentSubtype:'mediumArmor', acBonus:5, maxDex:2, acp:-5, spellFailure:30, weight:40, price:150 },
+        'chain mail':       { equipmentSubtype:'mediumArmor', acBonus:5, maxDex:2, acp:-5, spellFailure:30, weight:40, price:150 },
+        'breastplate':      { equipmentSubtype:'mediumArmor', acBonus:5, maxDex:3, acp:-4, spellFailure:25, weight:30, price:200 },
+        'splint mail':      { equipmentSubtype:'heavyArmor', acBonus:6, maxDex:0, acp:-7, spellFailure:40, weight:45, price:200 },
+        'banded mail':      { equipmentSubtype:'heavyArmor', acBonus:6, maxDex:1, acp:-6, spellFailure:35, weight:35, price:250 },
+        'half-plate':       { equipmentSubtype:'heavyArmor', acBonus:7, maxDex:0, acp:-7, spellFailure:40, weight:50, price:600 },
+        'half plate':       { equipmentSubtype:'heavyArmor', acBonus:7, maxDex:0, acp:-7, spellFailure:40, weight:50, price:600 },
+        'full plate':       { equipmentSubtype:'heavyArmor', acBonus:8, maxDex:1, acp:-6, spellFailure:35, weight:50, price:1500 },
+        'buckler':          { equipmentSubtype:'shield', acBonus:1, maxDex:null, acp:-1, spellFailure:5, weight:5, price:15 },
+        'light shield':     { equipmentSubtype:'shield', acBonus:1, maxDex:null, acp:-1, spellFailure:5, weight:5, price:3 },
+        'light wooden shield':  { equipmentSubtype:'shield', acBonus:1, maxDex:null, acp:-1, spellFailure:5, weight:5, price:3 },
+        'light steel shield':   { equipmentSubtype:'shield', acBonus:1, maxDex:null, acp:-1, spellFailure:5, weight:6, price:9 },
+        'heavy shield':     { equipmentSubtype:'shield', acBonus:2, maxDex:null, acp:-2, spellFailure:15, weight:10, price:7 },
+        'heavy wooden shield':  { equipmentSubtype:'shield', acBonus:2, maxDex:null, acp:-2, spellFailure:15, weight:10, price:7 },
+        'heavy steel shield':   { equipmentSubtype:'shield', acBonus:2, maxDex:null, acp:-2, spellFailure:15, weight:15, price:20 },
+        'tower shield':     { equipmentSubtype:'shield', acBonus:4, maxDex:2, acp:-10, spellFailure:50, weight:45, price:30 },
+        'mithral shirt':    { equipmentSubtype:'lightArmor', acBonus:4, maxDex:6, acp:0, spellFailure:10, weight:10, price:1100 },
+        'mithral chain shirt': { equipmentSubtype:'lightArmor', acBonus:4, maxDex:6, acp:0, spellFailure:10, weight:10, price:1100 },
+        'mithral breastplate': { equipmentSubtype:'mediumArmor', acBonus:5, maxDex:5, acp:-1, spellFailure:15, weight:15, price:4200 },
+        'mithral full plate':  { equipmentSubtype:'heavyArmor', acBonus:8, maxDex:3, acp:-3, spellFailure:15, weight:25, price:10500 },
+    };
+
     static async parse(textData) {
         console.log("D35E Importer | Parsing Hero Lab Statblock...");
 
@@ -398,6 +494,41 @@ class StatblockParser {
                 updateData.system.traits.languages = { custom: langs.join(';') };
             }
 
+            // ---- Melee Attacks ----
+            const meleeMatch = linesText.match(/Melee:?\s+(.+?)(?=\n(?:Ranged|Space|Special|Spell-Like|Spells|Abilities|Str\b)|$)/is);
+            if (meleeMatch) {
+                const meleeAttacks = StatblockParser._parseAttackLine(meleeMatch[1], 'mwak');
+                for (const atk of meleeAttacks) {
+                    updateData.items.push(atk);
+                }
+            }
+
+            // ---- Ranged Attacks ----
+            const rangedMatch = linesText.match(/Ranged:?\s+(.+?)(?=\n(?:Space|Special|Spell-Like|Spells|Abilities|Str\b)|$)/is);
+            if (rangedMatch) {
+                const rangedAttacks = StatblockParser._parseAttackLine(rangedMatch[1], 'rwak');
+                for (const atk of rangedAttacks) {
+                    updateData.items.push(atk);
+                }
+            }
+
+            // ---- Possessions / Equipment ----
+            const possMatch = linesText.match(/(?:Possessions|Gear|Other Gear|Combat Gear|Equipment):?\s+(.+?)(?=\n(?:Spells|Special|Languages|Feats|Skills|$)|$)/is);
+            if (possMatch) {
+                const possItems = StatblockParser._parsePossessions(possMatch[1].replace(/\n/g, ', '));
+                for (const item of possItems) {
+                    updateData.items.push(item);
+                }
+            }
+
+            // ---- Currency / Gold ----
+            const gpMatch = linesText.match(/(\d[\d,]*)\s*gp/i);
+            if (gpMatch) updateData.system.currency = { ...(updateData.system.currency || {}), gp: parseInt(gpMatch[1].replace(/,/g, '')) };
+            const spMatch = linesText.match(/(\d[\d,]*)\s*sp/i);
+            if (spMatch) updateData.system.currency = { ...(updateData.system.currency || {}), sp: parseInt(spMatch[1].replace(/,/g, '')) };
+            const ppMatch = linesText.match(/(\d[\d,]*)\s*pp/i);
+            if (ppMatch) updateData.system.currency = { ...(updateData.system.currency || {}), pp: parseInt(ppMatch[1].replace(/,/g, '')) };
+
             console.log("D35E Importer | Statblock Parse Result:", updateData);
             return updateData;
         } catch (error) {
@@ -418,5 +549,284 @@ class StatblockParser {
         }
         if (current.trim()) result.push(current.trim());
         return result;
+    }
+
+    /**
+     * Parse a Melee or Ranged attack line into D35E 'attack' items.
+     * Format: "masterwork longsword +9/+4 (1d8+4/19-20)" or "+1 longsword +10 (1d8+5/19-20/x2)"
+     * Multiple attacks separated by " or " or ","
+     */
+    static _parseAttackLine(text, actionType) {
+        const items = [];
+        // Split on " or " at the top level (not inside parens)
+        const attackStrings = text.split(/\s+or\s+/i);
+
+        for (const atkStr of attackStrings) {
+            const trimmed = atkStr.trim().replace(/\n/g, ' ');
+            if (!trimmed) continue;
+
+            // Pattern: [optional prefix] name +bonus[/+bonus...] (damage/crit)
+            const atkMatch = trimmed.match(/^(.+?)\s+([+-]\d+(?:\/[+-]?\d+)*)\s*\(([^)]+)\)/);
+            if (!atkMatch) {
+                // Fallback: just create an attack with the name
+                const cleanName = trimmed.replace(/\s*\(.*\)/, '').replace(/\s+[+-]\d+.*$/, '').trim();
+                if (cleanName.length > 0 && cleanName.length < 80) {
+                    items.push({
+                        name: StatblockParser._titleCase(cleanName),
+                        type: "attack",
+                        system: {
+                            attackType: "weapon",
+                            actionType: actionType,
+                            primaryAttack: true,
+                            proficient: true,
+                            showInQuickbar: true,
+                            description: { value: `Imported: ${trimmed}` }
+                        }
+                    });
+                }
+                continue;
+            }
+
+            const weaponName = atkMatch[1].trim();
+            const attackBonuses = atkMatch[2]; // e.g. "+9/+4"
+            const damageInfo = atkMatch[3];    // e.g. "1d8+4/19-20" or "2d6+7/19-20/x3"
+
+            // Parse damage, crit range, crit mult from damageInfo
+            const dmgParts = damageInfo.split('/');
+            const damageRoll = dmgParts[0].trim(); // "1d8+4"
+            let critRange = '20';
+            let critMult = 2;
+
+            for (let i = 1; i < dmgParts.length; i++) {
+                const part = dmgParts[i].trim();
+                if (part.startsWith('x') || part.startsWith('×')) {
+                    critMult = parseInt(part.substring(1)) || 2;
+                } else if (/^\d+-\d+$/.test(part)) {
+                    critRange = part.split('-')[0]; // "19-20" -> "19"
+                } else if (/^\d+$/.test(part)) {
+                    critRange = part;
+                }
+            }
+
+            // Determine enhancement bonus from weapon name
+            const enhMatch = weaponName.match(/^\+(\d+)\s+/);
+            const enh = enhMatch ? parseInt(enhMatch[1]) : null;
+            const isMasterwork = /masterwork|mwk/i.test(weaponName);
+            const cleanWeaponName = weaponName.replace(/^\+\d+\s+/, '')
+                                              .replace(/masterwork\s+/i, '')
+                                              .replace(/mwk\s+/i, '').trim();
+
+            // Try to look up base weapon data
+            const baseWeapon = StatblockParser._findWeaponData(cleanWeaponName);
+
+            const attackItem = {
+                name: StatblockParser._titleCase(weaponName),
+                type: "attack",
+                system: {
+                    attackType: "weapon",
+                    actionType: actionType,
+                    primaryAttack: true,
+                    proficient: true,
+                    showInQuickbar: true,
+                    masterwork: isMasterwork || enh !== null,
+                    enh: enh,
+                    weaponSubtype: baseWeapon ? baseWeapon.weaponSubtype : (actionType === 'mwak' ? '1h' : 'ranged'),
+                    attackBonus: attackBonuses.split('/')[0],
+                    ability: {
+                        attack: actionType === 'mwak' ? 'str' : 'dex',
+                        damage: actionType === 'mwak' ? 'str' : null,
+                        damageMult: 1,
+                        critRange: critRange,
+                        critMult: critMult
+                    },
+                    damage: {
+                        parts: [[damageRoll, baseWeapon ? baseWeapon.damageType : '']]
+                    },
+                    description: { value: `Attack: ${trimmed}` }
+                }
+            };
+
+            items.push(attackItem);
+        }
+
+        return items;
+    }
+
+    /**
+     * Parse possessions/gear text into appropriate D35E item types.
+     * Classifies into: weapon, equipment (armor/shields), consumable, or loot.
+     */
+    static _parsePossessions(text) {
+        const items = [];
+        const entries = StatblockParser._splitOnCommas(text);
+
+        for (let entry of entries) {
+            entry = entry.trim();
+            if (!entry || entry.length > 120) continue;
+            // Stop if we hit another section header
+            if (/^(Spells|Special|Languages|Feats|Skills|Str\b|Dex\b|Con\b)/i.test(entry)) break;
+
+            // Extract quantity: "potion of cure light wounds (x2)" or "(2)"
+            let quantity = 1;
+            const qtyMatch = entry.match(/\((?:x|\u00d7)?(\d+)\)$/i);
+            if (qtyMatch) {
+                quantity = parseInt(qtyMatch[1]);
+                entry = entry.replace(/\s*\((?:x|\u00d7)?\d+\)$/i, '').trim();
+            }
+            // Also handle "2 potions of ..."
+            const leadQty = entry.match(/^(\d+)\s+/);
+            if (leadQty && parseInt(leadQty[1]) < 100) {
+                quantity = parseInt(leadQty[1]);
+                entry = entry.replace(/^\d+\s+/, '').trim();
+            }
+
+            // Detect enhancement bonus
+            const enhMatch = entry.match(/^\+(\d+)\s+/);
+            const enh = enhMatch ? parseInt(enhMatch[1]) : 0;
+            const baseName = entry.replace(/^\+\d+\s+/, '').replace(/masterwork\s+/i, '').replace(/mwk\s+/i, '').trim();
+            const isMasterwork = /masterwork|mwk/i.test(entry);
+
+            // Try to classify the item
+            const armorData = StatblockParser._findArmorData(baseName);
+            const weaponData = StatblockParser._findWeaponData(baseName);
+            const isConsumable = /potion|scroll|wand|oil|elixir|salve|antitoxin|tanglefoot|thunderstone|alchemist/i.test(entry);
+
+            if (armorData) {
+                // Armor or Shield
+                items.push({
+                    name: StatblockParser._titleCase(entry),
+                    type: "equipment",
+                    system: {
+                        equipmentType: armorData.equipmentSubtype === 'shield' ? 'shield' : 'armor',
+                        equipmentSubtype: armorData.equipmentSubtype,
+                        equipped: true,
+                        masterwork: isMasterwork || enh > 0,
+                        armor: {
+                            value: armorData.acBonus,
+                            dex: armorData.maxDex,
+                            acp: armorData.acp,
+                            enh: enh
+                        },
+                        spellFailure: armorData.spellFailure,
+                        quantity: quantity,
+                        weight: armorData.weight,
+                        price: armorData.price,
+                        identified: true,
+                        carried: true,
+                        description: { value: `Imported: ${entry}` }
+                    }
+                });
+            } else if (weaponData) {
+                // Weapon item (inventory, not attack roll)
+                items.push({
+                    name: StatblockParser._titleCase(entry),
+                    type: "weapon",
+                    system: {
+                        weaponType: weaponData.weaponType,
+                        weaponSubtype: weaponData.weaponSubtype,
+                        equipped: true,
+                        masterwork: isMasterwork || enh > 0,
+                        enh: enh || null,
+                        quantity: quantity,
+                        identified: true,
+                        carried: true,
+                        weaponData: {
+                            damageRoll: weaponData.damage,
+                            damageType: weaponData.damageType,
+                            critRange: weaponData.critRange,
+                            critMult: weaponData.critMult,
+                            range: weaponData.range || null,
+                            size: 'med'
+                        },
+                        description: { value: `Imported: ${entry}` }
+                    }
+                });
+            } else if (isConsumable) {
+                // Consumable item
+                let consumableType = 'potion';
+                if (/scroll/i.test(entry)) consumableType = 'scroll';
+                else if (/wand/i.test(entry)) consumableType = 'wand';
+                else if (/oil/i.test(entry)) consumableType = 'oil';
+
+                items.push({
+                    name: StatblockParser._titleCase(entry),
+                    type: "consumable",
+                    system: {
+                        consumableType: consumableType,
+                        quantity: quantity,
+                        identified: true,
+                        carried: true,
+                        description: { value: `Imported: ${entry}` }
+                    }
+                });
+            } else {
+                // Generic loot / wondrous item
+                const isWondrous = /cloak|ring|amulet|belt|boots|bracers|cape|circlet|gloves|goggles|hat|headband|helm|ioun|mantle|necklace|periapt|robe|vest/i.test(entry);
+                items.push({
+                    name: StatblockParser._titleCase(entry),
+                    type: isWondrous ? "equipment" : "loot",
+                    system: isWondrous ? {
+                        equipmentType: 'misc',
+                        equipmentSubtype: 'wondrous',
+                        equipped: true,
+                        quantity: quantity,
+                        identified: true,
+                        carried: true,
+                        slot: 'slotless',
+                        description: { value: `Imported: ${entry}` }
+                    } : {
+                        subType: 'misc',
+                        quantity: quantity,
+                        identified: true,
+                        carried: true,
+                        description: { value: `Imported: ${entry}` }
+                    }
+                });
+            }
+        }
+
+        return items;
+    }
+
+    /**
+     * Look up weapon data by name (fuzzy match).
+     */
+    static _findWeaponData(name) {
+        const lower = name.toLowerCase().trim();
+        // Direct lookup
+        if (StatblockParser.WEAPON_DATA[lower]) return StatblockParser.WEAPON_DATA[lower];
+        // Try removing trailing "s" for plurals (e.g., "daggers" -> "dagger")
+        if (lower.endsWith('s') && StatblockParser.WEAPON_DATA[lower.slice(0, -1)]) {
+            return StatblockParser.WEAPON_DATA[lower.slice(0, -1)];
+        }
+        // Substring match (e.g., "cold iron longsword" should match "longsword")
+        for (const [key, data] of Object.entries(StatblockParser.WEAPON_DATA)) {
+            if (lower.includes(key)) return data;
+        }
+        return null;
+    }
+
+    /**
+     * Look up armor/shield data by name (fuzzy match).
+     */
+    static _findArmorData(name) {
+        const lower = name.toLowerCase().trim();
+        if (StatblockParser.ARMOR_DATA[lower]) return StatblockParser.ARMOR_DATA[lower];
+        for (const [key, data] of Object.entries(StatblockParser.ARMOR_DATA)) {
+            if (lower.includes(key)) return data;
+        }
+        return null;
+    }
+
+    /**
+     * Title-case a string.
+     */
+    static _titleCase(str) {
+        return str.replace(/\b\w+/g, word => {
+            // Keep small words lowercase unless first
+            const small = ['a','an','the','and','but','or','for','nor','of','to','in','on','at','by','with'];
+            if (small.includes(word.toLowerCase())) return word.toLowerCase();
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        }).replace(/^./, c => c.toUpperCase());
     }
 }
