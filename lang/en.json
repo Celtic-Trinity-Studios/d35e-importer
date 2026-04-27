@@ -7,7 +7,7 @@
   "D35EImporter.FileLabel": "Character File",
   "D35EImporter.OrPasteData": "Or paste data below",
   "D35EImporter.TextLabel": "Raw Data",
-  "D35EImporter.TextPlaceholder": "Paste JSON/XML data here...",
+  "D35EImporter.TextPlaceholder": "Paste Hero Lab statblock (HTML or Text), XML, or JSON data here...",
   "D35EImporter.NoDataWarn": "Please select a file or paste data to import.",
   "D35EImporter.ImportStarted": "Importing character data...",
   "D35EImporter.ImportSuccess": "Character imported successfully!",

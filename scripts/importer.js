@@ -23,16 +23,34 @@ class D35EImporterDialog extends Application {
 
     activateListeners(html) {
         super.activateListeners(html);
-        html.find('#d35e-import-submit').click(this._onImport.bind(this));
+        
+        // Support both jQuery (V12) and plain DOM (V13)
+        const element = html instanceof jQuery ? html[0] : (html?.element ?? html);
+        
+        const submitBtn = element.querySelector('#d35e-import-submit');
+        if (submitBtn) {
+            submitBtn.addEventListener('click', this._onImport.bind(this));
+        }
+    }
+
+    _getFormElement() {
+        // ApplicationV2 uses this.element as a plain DOM node
+        // V12 uses this.element as a jQuery object
+        if (this.element instanceof jQuery) {
+            return this.element[0];
+        }
+        return this.element?.element ?? this.element;
     }
 
     async _onImport(event) {
         event.preventDefault();
         
-        const fileInput = this.element.find('#d35e-import-file')[0];
-        const jsonText = this.element.find('#d35e-import-text').val();
+        const el = this._getFormElement();
+        const fileInput = el.querySelector('#d35e-import-file');
+        const textArea = el.querySelector('#d35e-import-text');
+        const jsonText = textArea ? textArea.value : '';
 
-        if (fileInput.files.length > 0) {
+        if (fileInput && fileInput.files.length > 0) {
             const file = fileInput.files[0];
             const extension = file.name.split('.').pop().toLowerCase();
             
@@ -41,15 +59,11 @@ class D35EImporterDialog extends Application {
                 let updateData = null;
 
                 if (extension === 'pdf') {
-                    // Pass the file directly to the PDF parser
                     updateData = await PDFTextParser.parse(file);
                 } else if (extension === 'por') {
-                    // Read .por as array buffer for JSZip
                     const arrayBuffer = await file.arrayBuffer();
                     const zip = await JSZip.loadAsync(arrayBuffer);
                     
-                    // A Hero Lab portfolio usually has an internal statblocks.xml or similar
-                    // We search for an xml file inside the zip
                     const xmlFiles = Object.keys(zip.files).filter(name => name.endsWith('.xml'));
                     if (xmlFiles.length === 0) throw new Error("No XML found in the Hero Lab Portfolio.");
                     
