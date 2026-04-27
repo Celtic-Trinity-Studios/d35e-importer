@@ -1,11 +1,41 @@
-$version = "v1.5.1"
-$zipFile = "d35e-importer.zip"
-$repo = "Celtic-Trinity-Studios/d35e-importer"
+$ErrorActionPreference = "Stop"
 
-Write-Host "Creating release $version..."
-$releaseOutput = gh release create $version $zipFile --title "Release $version" --notes "Fixes to levelUpData and skills"
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Release created successfully."
-} else {
-    Write-Host "Failed to create release."
+# Get git credentials
+$credInput = @"
+protocol=https
+host=github.com
+
+"@
+$credOutput = $credInput | git credential fill 2>$null
+$token = ($credOutput | Where-Object { $_ -match "^password=" }) -replace "password=", ""
+
+if (-not $token) {
+    Write-Error "Could not get GitHub token from git credentials"
+    exit 1
 }
+
+$headers = @{
+    "Authorization" = "token $token"
+    "Accept" = "application/vnd.github+json"
+}
+
+# Create release
+$body = @{
+    tag_name = "v1.5.2"
+    name = "Release v1.5.2"
+    body = "Fix class level progression - set levelUpProgression and level.available"
+} | ConvertTo-Json
+
+Write-Host "Creating release..."
+$release = Invoke-RestMethod -Uri "https://api.github.com/repos/Celtic-Trinity-Studios/d35e-importer/releases" `
+    -Method Post -Headers $headers -ContentType "application/json" -Body $body
+
+Write-Host "Release created with ID $($release.id)"
+
+# Upload asset
+$uploadUrl = $release.upload_url -replace "\{.*\}", ""
+Write-Host "Uploading d35e-importer.zip..."
+$result = Invoke-RestMethod -Uri "$($uploadUrl)?name=d35e-importer.zip" `
+    -Method Post -Headers $headers -ContentType "application/zip" -InFile "d35e-importer.zip"
+
+Write-Host "Uploaded: $($result.name) ($($result.size) bytes) - $($result.browser_download_url)"
