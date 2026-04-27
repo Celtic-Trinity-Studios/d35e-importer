@@ -177,7 +177,7 @@ class StatblockParser {
         'mithral full plate':  { equipmentSubtype:'heavyArmor', acBonus:8, maxDex:3, acp:-3, spellFailure:15, weight:25, price:10500 },
     };
 
-    static async parse(textData) {
+    static async parse(textData, classIndex = null) {
         console.log("D35E Importer | Parsing Hero Lab Statblock...");
 
         // Strip <title> tag content and <style> blocks before processing
@@ -220,6 +220,16 @@ class StatblockParser {
                        l !== '-' && l !== '—';
             });
 
+            // Merge hardcoded CLASS_DATA with dynamic classIndex from compendiums
+            // Compendium data takes priority
+            const allClassNames = new Set(Object.keys(StatblockParser.CLASS_DATA));
+            if (classIndex) {
+                for (const name of classIndex.keys()) {
+                    allClassNames.add(name);
+                }
+            }
+            const allClassNamesArr = Array.from(allClassNames);
+
             // ---- Extract Character Name ----
             // First meaningful line is usually the name, possibly with "CR X"
             if (lines.length > 0) {
@@ -236,10 +246,9 @@ class StatblockParser {
             // e.g., "Male Human Wizard 1" or "Male Human Archivist 3 Rogue 1"
             let classLine = '';
             let classLineIdx = -1;
-            const classNames = Object.keys(StatblockParser.CLASS_DATA);
-            // Match known classes OR any capitalized word followed by a number
-            const knownClassRegex = new RegExp('\\b(' + classNames.map(c => c.replace(/\s+/g, '\\s+')).join('|') + ')\\b\\s+\\d+', 'i');
-            // Fallback: any line with a word followed by a space and digit (e.g. "Archivist 3")
+            // Match known classes from both hardcoded and compendium sources
+            const knownClassRegex = new RegExp('\\b(' + allClassNamesArr.map(c => c.replace(/\s+/g, '\\s+')).join('|') + ')\\b\\s+\\d+', 'i');
+            // Fallback: any line with a capitalized word followed by a number
             const genericClassRegex = /\b[A-Z][a-z]+\s+\d+/;
 
             for (let i = 0; i < Math.min(lines.length, 8); i++) {
@@ -300,8 +309,22 @@ class StatblockParser {
             let totalLevel = 0;
             const foundClasses = new Set();
             if (classLine) {
-                // First pass: match known classes from CLASS_DATA
-                for (const [className, cData] of Object.entries(StatblockParser.CLASS_DATA)) {
+                // Helper: look up class data from dynamic index first, then hardcoded fallback
+                const lookupClassData = (name) => {
+                    const lower = name.toLowerCase();
+                    // 1. Check compendium/world classIndex (has real system data)
+                    if (classIndex && classIndex.has(lower)) {
+                        return classIndex.get(lower);
+                    }
+                    // 2. Check hardcoded CLASS_DATA
+                    if (StatblockParser.CLASS_DATA[lower]) {
+                        return StatblockParser.CLASS_DATA[lower];
+                    }
+                    return null;
+                };
+
+                // First pass: match all known classes (compendium + hardcoded)
+                for (const className of allClassNamesArr) {
                     const cRegex = new RegExp('\\b' + className.replace(/\s+/g, '\\s+') + '\\s+(\\d+)', 'i');
                     const cMatch = classLine.match(cRegex);
                     if (cMatch) {
@@ -309,20 +332,23 @@ class StatblockParser {
                         totalLevel += level;
                         const displayName = className.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                         foundClasses.add(displayName.toLowerCase());
+                        const cData = lookupClassData(className);
+                        const classType = cData?.classType || "base";
+                        console.log(`D35E Importer | Matched class: ${displayName} ${level} (source: ${classIndex?.has(className.toLowerCase()) ? 'compendium' : 'hardcoded'}, type: ${classType})`);
                         updateData.items.push({
                             name: displayName,
                             type: "class",
                             system: {
                                 levels: level,
-                                classType: "base",
-                                hd: cData.hd,
-                                hp: cData.hp,
-                                bab: cData.bab,
-                                skillsPerLevel: cData.skillsPerLevel,
+                                classType: classType,
+                                hd: cData?.hd || 8,
+                                hp: cData?.hp || cData?.hd || 8,
+                                bab: cData?.bab || "med",
+                                skillsPerLevel: cData?.skillsPerLevel || 4,
                                 savingThrows: {
-                                    fort: { value: cData.fort },
-                                    ref: { value: cData.ref },
-                                    will: { value: cData.will }
+                                    fort: { value: cData?.fort || "low" },
+                                    ref: { value: cData?.ref || "low" },
+                                    will: { value: cData?.will || "high" }
                                 },
                                 description: { value: `${displayName} level ${level}` }
                             }
@@ -330,10 +356,9 @@ class StatblockParser {
                     }
                 }
                 
-                // Second pass: catch any remaining "ClassName Number" patterns not already matched
-                // This handles classes not in CLASS_DATA (e.g. prestige classes, 3rd-party)
+                // Second pass: catch any remaining "ClassName Number" patterns not matched
+                // This handles classes not in any source (e.g. homebrew not yet added)
                 let remaining = classLine;
-                // Strip gender, race, alignment, size, creature type
                 remaining = remaining.replace(/^(Male|Female)\s+/i, '');
                 for (const race of StatblockParser.RACES) {
                     remaining = remaining.replace(new RegExp('\\b' + race.replace(/-/g, '[-\\s]?') + '\\b', 'i'), '');
@@ -343,7 +368,6 @@ class StatblockParser {
                 remaining = remaining.replace(/\b(Humanoid|Outsider|Aberration|Animal|Construct|Dragon|Fey|Giant|Magical Beast|Monstrous Humanoid|Ooze|Plant|Undead|Vermin|Elemental)\b/gi, '');
                 remaining = remaining.trim();
                 
-                // Match all "Word Number" or "Word Word Number" patterns
                 const unknownClassRegex = /\b([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)*)\s+(\d+)\b/g;
                 let ucMatch;
                 while ((ucMatch = unknownClassRegex.exec(remaining)) !== null) {
@@ -353,25 +377,84 @@ class StatblockParser {
                     if (ucLevel > 0 && ucLevel <= 40) {
                         totalLevel += ucLevel;
                         foundClasses.add(ucName.toLowerCase());
-                        console.log(`D35E Importer | Found unknown class: ${ucName} ${ucLevel} (using defaults)`);
+                        // Check if this unknown name exists in compendiums as a template
+                        const cData = lookupClassData(ucName);
+                        const classType = cData?.classType || "base";
+                        console.log(`D35E Importer | Found unmatched class: ${ucName} ${ucLevel} (type: ${classType})`);
                         updateData.items.push({
                             name: ucName,
                             type: "class",
                             system: {
                                 levels: ucLevel,
-                                classType: "base",
-                                hd: 6,
-                                hp: 6,
-                                bab: "med",
-                                skillsPerLevel: 4,
+                                classType: classType,
+                                hd: cData?.hd || 6,
+                                hp: cData?.hp || 6,
+                                bab: cData?.bab || "med",
+                                skillsPerLevel: cData?.skillsPerLevel || 4,
                                 savingThrows: {
-                                    fort: { value: "low" },
-                                    ref: { value: "low" },
-                                    will: { value: "high" }
+                                    fort: { value: cData?.fort || "low" },
+                                    ref: { value: cData?.ref || "low" },
+                                    will: { value: cData?.will || "high" }
                                 },
                                 description: { value: `${ucName} level ${ucLevel} (auto-detected)` }
                             }
                         });
+                    }
+                }
+                
+                // Third pass: detect templates (words on the class line without level numbers)
+                // Templates in D35E have classType "template" and appear without a number
+                // e.g. "Half-Dragon Human Fighter 5" or "Lich Human Wizard 10"
+                if (classIndex) {
+                    let templateCheck = classLine;
+                    templateCheck = templateCheck.replace(/^(Male|Female)\s+/i, '');
+                    for (const race of StatblockParser.RACES) {
+                        templateCheck = templateCheck.replace(new RegExp('\\b' + race.replace(/-/g, '[-\\s]?') + '\\b', 'i'), '');
+                    }
+                    // Remove already-found classes and their levels
+                    for (const fc of foundClasses) {
+                        templateCheck = templateCheck.replace(new RegExp('\\b' + fc.replace(/\s+/g, '\\s+') + '\\s+\\d+', 'i'), '');
+                    }
+                    templateCheck = templateCheck.replace(/\b(LG|NG|CG|LN|TN|CN|LE|NE|CE)\b/g, '');
+                    templateCheck = templateCheck.replace(/\b(Fine|Diminutive|Tiny|Small|Medium|Large|Huge|Gargantuan|Colossal)\b/gi, '');
+                    templateCheck = templateCheck.replace(/\b(Humanoid|Outsider|Aberration|Animal|Construct|Dragon|Fey|Giant|Magical Beast|Monstrous Humanoid|Ooze|Plant|Undead|Vermin|Elemental)\b/gi, '');
+                    templateCheck = templateCheck.trim();
+                    
+                    // Check remaining words against compendium for template-type entries
+                    if (templateCheck.length > 0) {
+                        // Try multi-word and single-word matches
+                        const templateWords = templateCheck.split(/\s+/).filter(w => w.length > 1);
+                        for (let len = templateWords.length; len > 0; len--) {
+                            for (let start = 0; start <= templateWords.length - len; start++) {
+                                const candidateName = templateWords.slice(start, start + len).join(' ');
+                                const lower = candidateName.toLowerCase();
+                                if (classIndex.has(lower) && classIndex.get(lower).classType === "template") {
+                                    if (!foundClasses.has(lower)) {
+                                        foundClasses.add(lower);
+                                        const tData = classIndex.get(lower);
+                                        console.log(`D35E Importer | Found template: ${candidateName} (from compendium)`);
+                                        updateData.items.push({
+                                            name: candidateName.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+                                            type: "class",
+                                            system: {
+                                                levels: 1,
+                                                classType: "template",
+                                                hd: tData?.hd || 0,
+                                                hp: tData?.hp || 0,
+                                                bab: tData?.bab || "~",
+                                                skillsPerLevel: tData?.skillsPerLevel || 0,
+                                                savingThrows: {
+                                                    fort: { value: tData?.fort || "low" },
+                                                    ref: { value: tData?.ref || "low" },
+                                                    will: { value: tData?.will || "low" }
+                                                },
+                                                description: { value: `Template: ${candidateName}` }
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
