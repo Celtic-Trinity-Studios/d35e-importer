@@ -141,7 +141,7 @@ class D35EImporterDialog extends Application {
         if (updateData.system) safeUpdateData.system = updateData.system;
         
         if (Object.keys(safeUpdateData).length > 0) {
-            await targetActor.update(safeUpdateData);
+            await targetActor.update(foundry.utils.flattenObject(safeUpdateData));
             console.log("D35E Importer | Actor base data updated:", safeUpdateData);
         }
 
@@ -216,8 +216,39 @@ class D35EImporterDialog extends Application {
                 }
 
                 console.log(`D35E Importer | Creating ${finalItemsToCreate.length} embedded items...`);
-                await targetActor.createEmbeddedDocuments("Item", finalItemsToCreate);
+                const createdItems = await targetActor.createEmbeddedDocuments("Item", finalItemsToCreate);
                 console.log("D35E Importer | Embedded items created successfully.");
+
+                // Automatically map levelUpData for the actor based on imported classes
+                const classes = createdItems.filter(i => i.type === "class");
+                if (classes.length > 0) {
+                    let totalLevel = 0;
+                    const levelUpData = [];
+                    for (const cls of classes) {
+                        const classLevel = cls.system?.levels || 1;
+                        for (let i = 0; i < classLevel; i++) {
+                            const currentLvl = totalLevel + i + 1;
+                            levelUpData.push({
+                                level: currentLvl,
+                                id: `_level${currentLvl}`,
+                                classId: cls.id,
+                                class: cls.name,
+                                skills: {},
+                                hp: currentLvl === 1 ? (cls.system?.hp || 8) : Math.floor((cls.system?.hp || 8) / 2) + 1,
+                                hasFeat: currentLvl === 1 || currentLvl % 3 === 0,
+                                hasAbility: currentLvl % 4 === 0
+                            });
+                        }
+                        totalLevel += classLevel;
+                    }
+                    if (totalLevel > 0) {
+                        await targetActor.update({
+                            "system.details.level.value": totalLevel,
+                            "system.details.levelUpData": levelUpData
+                        });
+                        console.log("D35E Importer | Actor levelUpData generated successfully.");
+                    }
+                }
             } catch (err) {
                 console.error("D35E Importer | Failed to create some embedded items:", err);
                 ui.notifications.warn("Some items (feats/classes/gear) could not be created. Check the console for details.");
