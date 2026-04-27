@@ -2,7 +2,7 @@
   "id": "d35e-importer",
   "title": "D35E Character Importer",
   "description": "A module to import character data into the D35E system from Hero Lab, PCGen, and PDF.",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "url": "https://github.com/Celtic-Trinity-Studios/d35e-importer",
   "manifest": "https://raw.githubusercontent.com/Celtic-Trinity-Studios/d35e-importer/main/module.json",
   "download": "https://github.com/Celtic-Trinity-Studios/d35e-importer/releases/latest/download/d35e-importer.zip",

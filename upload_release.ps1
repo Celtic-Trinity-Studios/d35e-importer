@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+$version = "v1.5.3"
 
 # Get git credentials
 $credInput = @"
@@ -21,9 +22,9 @@ $headers = @{
 
 # Create release
 $body = @{
-    tag_name = "v1.5.2"
-    name = "Release v1.5.2"
-    body = "Fix class level progression - set levelUpProgression and level.available"
+    tag_name = $version
+    name = "Release $version"
+    body = "Fix corrupted actor - remove recursive:false"
 } | ConvertTo-Json
 
 Write-Host "Creating release..."

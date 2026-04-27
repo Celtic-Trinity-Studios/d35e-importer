@@ -243,13 +243,12 @@ class D35EImporterDialog extends Application {
                         totalLevel += classLevel;
                     }
                     if (totalLevel > 0) {
-                        // Step 1: Enable level progression and set available levels
+                        // Set all level data in ONE update so the D35E updater sees
+                        // matching levelUpData.length === level.available and doesn't
+                        // reset our class levels
                         await targetActor.update({
                             "system.details.level.available": totalLevel,
-                            "system.details.levelUpProgression": true
-                        });
-                        // Step 2: Set the levelUpData (D35E updater will process it)
-                        await targetActor.update({
+                            "system.details.levelUpProgression": true,
                             "system.details.levelUpData": levelUpData
                         });
                         console.log("D35E Importer | Actor levelUpData generated successfully:", levelUpData);
