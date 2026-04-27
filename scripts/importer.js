@@ -243,15 +243,26 @@ class D35EImporterDialog extends Application {
                         totalLevel += classLevel;
                     }
                     if (totalLevel > 0) {
+                        // Calculate minimum XP for this level using D35E's XP table
+                        let minXP = 0;
+                        try {
+                            minXP = targetActor.getLevelExp(totalLevel - 1) || 0;
+                        } catch(e) {
+                            // Fallback: standard 3.5e medium XP table
+                            const xpTable = [0, 1000, 3000, 6000, 10000, 15000, 21000, 28000, 36000, 45000, 55000, 66000, 78000, 91000, 105000, 120000, 136000, 153000, 171000, 190000];
+                            minXP = xpTable[Math.min(totalLevel - 1, xpTable.length - 1)] || 0;
+                        }
+                        
                         // Set all level data in ONE update so the D35E updater sees
                         // matching levelUpData.length === level.available and doesn't
                         // reset our class levels
                         await targetActor.update({
                             "system.details.level.available": totalLevel,
                             "system.details.levelUpProgression": true,
-                            "system.details.levelUpData": levelUpData
+                            "system.details.levelUpData": levelUpData,
+                            "system.details.xp.value": minXP
                         });
-                        console.log("D35E Importer | Actor levelUpData generated successfully:", levelUpData);
+                        console.log(`D35E Importer | Actor levelUpData generated (level ${totalLevel}, XP ${minXP}):`, levelUpData);
                     }
                 }
             } catch (err) {
