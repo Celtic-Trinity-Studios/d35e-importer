@@ -124,6 +124,10 @@ class D35EImporterDialog extends Application {
     async applyUpdate(updateData) {
         let targetActor = this.actor;
         
+        // Extract embedded items before creating/updating the actor
+        const embeddedItems = updateData.items || [];
+        delete updateData.items;
+
         if (!targetActor) {
             targetActor = await Actor.create({
                 name: updateData.name || "Imported Character",
@@ -131,13 +135,26 @@ class D35EImporterDialog extends Application {
             });
         }
 
-        // Clean up data to only update what exists to avoid errors on nested objects
+        // Build the actor update data
         const safeUpdateData = {};
         if (updateData.name) safeUpdateData.name = updateData.name;
         if (updateData.system) safeUpdateData.system = updateData.system;
         
         if (Object.keys(safeUpdateData).length > 0) {
             await targetActor.update(safeUpdateData);
+            console.log("D35E Importer | Actor base data updated:", safeUpdateData);
+        }
+
+        // Create embedded items (classes, feats, special abilities)
+        if (embeddedItems.length > 0) {
+            try {
+                console.log(`D35E Importer | Creating ${embeddedItems.length} embedded items...`);
+                await targetActor.createEmbeddedDocuments("Item", embeddedItems);
+                console.log("D35E Importer | Embedded items created successfully.");
+            } catch (err) {
+                console.error("D35E Importer | Failed to create some embedded items:", err);
+                ui.notifications.warn("Some items (feats/classes) could not be created. Check the console for details.");
+            }
         }
 
         ui.notifications.info(game.i18n.localize('D35EImporter.ImportSuccess'));
