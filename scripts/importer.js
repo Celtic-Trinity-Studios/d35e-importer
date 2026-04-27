@@ -230,11 +230,12 @@ class D35EImporterDialog extends Application {
                             const currentLvl = totalLevel + i + 1;
                             levelUpData.push({
                                 level: currentLvl,
-                                id: `_level${currentLvl}`,
+                                id: "_" + Math.random().toString(36).substr(2, 9),
                                 classId: cls.id,
                                 class: cls.name,
+                                classImage: cls.img || null,
                                 skills: {},
-                                hp: currentLvl === 1 ? (cls.system?.hp || 8) : Math.floor((cls.system?.hp || 8) / 2) + 1,
+                                hp: currentLvl === 1 ? (cls.system?.hp || cls.system?.hd || 8) : Math.floor((cls.system?.hd || 8) / 2) + 1,
                                 hasFeat: currentLvl === 1 || currentLvl % 3 === 0,
                                 hasAbility: currentLvl % 4 === 0
                             });
@@ -242,11 +243,14 @@ class D35EImporterDialog extends Application {
                         totalLevel += classLevel;
                     }
                     if (totalLevel > 0) {
+                        // D35E requires levelUpProgression=true and level.available to process classes
                         await targetActor.update({
                             "system.details.level.value": totalLevel,
+                            "system.details.level.available": totalLevel,
+                            "system.details.levelUpProgression": true,
                             "system.details.levelUpData": levelUpData
-                        });
-                        console.log("D35E Importer | Actor levelUpData generated successfully.");
+                        }, {recursive: false});
+                        console.log("D35E Importer | Actor levelUpData generated successfully:", levelUpData);
                     }
                 }
             } catch (err) {
