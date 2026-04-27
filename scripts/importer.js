@@ -237,7 +237,12 @@ class D35EImporterDialog extends Application {
                 // Automatically map levelUpData for the actor based on imported classes
                 const classItems = createdItems.filter(i => i.type === "class");
                 if (classItems.length > 0) {
-                    let totalLevel = classItems.reduce((sum, cls) => sum + (cls.system?.levels || 1), 0);
+                    // Track desired levels BEFORE D35E potentially zeros them
+                    const desiredLevels = new Map();
+                    for (const cls of classItems) {
+                        desiredLevels.set(cls.id, cls.system?.levels || 1);
+                    }
+                    let totalLevel = Array.from(desiredLevels.values()).reduce((a, b) => a + b, 0);
                     
                     if (totalLevel > 0) {
                         // Calculate minimum XP for this level
@@ -249,8 +254,7 @@ class D35EImporterDialog extends Application {
                             minXP = xpTable[Math.min(totalLevel - 1, xpTable.length - 1)] || 0;
                         }
                         
-                        // Step 1: Set XP and level.available. D35E's updater will
-                        // auto-create levelUpData entries (all with classId: null)
+                        // Step 1: Enable level progression. D35E creates empty levelUpData entries.
                         await targetActor.update({
                             "system.details.level.available": totalLevel,
                             "system.details.levelUpProgression": true,
@@ -258,24 +262,48 @@ class D35EImporterDialog extends Application {
                         });
                         console.log(`D35E Importer | Level progression enabled (level ${totalLevel}, XP ${minXP})`);
                         
-                        // Step 2: Patch classIds onto the auto-created levelUpData entries
-                        // Use individual dot-notation keys so D35E's updater doesn't resize
-                        const patchUpdate = {};
-                        let levelIdx = 0;
+                        // Step 2: Read back the levelUpData array, modify classIds, write back as COMPLETE array
+                        const currentLevelUpData = foundry.utils.duplicate(targetActor.system.details.levelUpData || []);
+                        console.log("D35E Importer | Current levelUpData from actor:", currentLevelUpData);
+                        
+                        let idx = 0;
                         for (const cls of classItems) {
-                            const classLevel = cls.system?.levels || 1;
-                            for (let i = 0; i < classLevel; i++) {
-                                patchUpdate[`system.details.levelUpData.${levelIdx}.classId`] = cls.id;
-                                patchUpdate[`system.details.levelUpData.${levelIdx}.class`] = cls.name;
-                                patchUpdate[`system.details.levelUpData.${levelIdx}.classImage`] = cls.img || null;
-                                patchUpdate[`system.details.levelUpData.${levelIdx}.hp`] = levelIdx === 0 
-                                    ? (cls.system?.hp || cls.system?.hd || 8) 
-                                    : Math.floor((cls.system?.hd || 8) / 2) + 1;
-                                levelIdx++;
+                            const lvl = desiredLevels.get(cls.id) || 1;
+                            for (let i = 0; i < lvl; i++) {
+                                if (idx < currentLevelUpData.length) {
+                                    currentLevelUpData[idx].classId = cls.id;
+                                    currentLevelUpData[idx].class = cls.name;
+                                    currentLevelUpData[idx].classImage = cls.img || null;
+                                    currentLevelUpData[idx].hp = idx === 0
+                                        ? (cls.system?.hp || cls.system?.hd || 8)
+                                        : Math.floor((cls.system?.hd || 8) / 2) + 1;
+                                }
+                                idx++;
                             }
                         }
-                        await targetActor.update(patchUpdate);
-                        console.log("D35E Importer | ClassIds patched onto levelUpData:", patchUpdate);
+                        
+                        // Write back the complete array and restore class levels
+                        await targetActor.update({
+                            "system.details.levelUpData": currentLevelUpData
+                        });
+                        console.log("D35E Importer | LevelUpData written with classIds:", currentLevelUpData);
+                        
+                        // Step 3: Restore class item levels (D35E's updater may have zeroed them)
+                        for (const cls of classItems) {
+                            const lvl = desiredLevels.get(cls.id) || 1;
+                            try {
+                                await targetActor.updateEmbeddedDocuments("Item", [{
+                                    _id: cls.id,
+                                    "system.levels": lvl
+                                }], {stopUpdates: true});
+                            } catch(e) {
+                                console.warn(`D35E Importer | Could not restore levels for ${cls.name}: ${e.message}`);
+                            }
+                        }
+                        
+                        // Final refresh to recalculate everything
+                        try { await targetActor.update({}); } catch(e) {}
+                        console.log("D35E Importer | Class levels restored and actor refreshed.");
                     }
                 }
             } catch (err) {
