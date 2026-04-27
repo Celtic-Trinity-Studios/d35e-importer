@@ -148,12 +148,79 @@ class D35EImporterDialog extends Application {
         // Create embedded items (classes, feats, special abilities)
         if (embeddedItems.length > 0) {
             try {
-                console.log(`D35E Importer | Creating ${embeddedItems.length} embedded items...`);
-                await targetActor.createEmbeddedDocuments("Item", embeddedItems);
+                console.log(`D35E Importer | Resolving ${embeddedItems.length} items from world and compendiums...`);
+                
+                const finalItemsToCreate = [];
+                // Load compendium indexes once for performance
+                const packs = game.packs.filter(p => p.metadata.type === "Item");
+                const packIndexes = [];
+                for (let pack of packs) {
+                    try {
+                        const index = await pack.getIndex({fields: ["name", "type"]});
+                        packIndexes.push({ pack, index });
+                    } catch (e) {
+                        // Ignore if index can't be loaded
+                    }
+                }
+
+                for (const parsedItem of embeddedItems) {
+                    let itemDataToCreate = parsedItem;
+                    let foundItemDoc = null;
+
+                    // Clean up item name to help with matching
+                    // Many parser generated names have trailing " (Su)" or " (Ex)" or " (Sp)" or bonus numbers
+                    let searchName = parsedItem.name.replace(/\s*\((Su|Ex|Sp)\)\s*$/i, '');
+                    searchName = searchName.replace(/^\+\d+\s+/, ''); // remove +1
+                    searchName = searchName.replace(/masterwork\s+/i, ''); // remove masterwork
+                    searchName = searchName.replace(/mwk\s+/i, '').trim();
+
+                    // 1. Search World Items
+                    foundItemDoc = game.items.find(i => i.name.toLowerCase() === searchName.toLowerCase());
+
+                    // 2. Search Compendiums
+                    if (!foundItemDoc) {
+                        for (const {pack, index} of packIndexes) {
+                            const entry = index.find(e => e.name.toLowerCase() === searchName.toLowerCase());
+                            if (entry) {
+                                foundItemDoc = await pack.getDocument(entry._id);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (foundItemDoc) {
+                        console.log(`D35E Importer | Matched '${parsedItem.name}' to item '${foundItemDoc.name}'.`);
+                        const baseData = foundItemDoc.toObject();
+                        delete baseData._id;
+
+                        // Merge in specific overrides from the parsed item
+                        if (parsedItem.system) {
+                            if ('quantity' in parsedItem.system) baseData.system.quantity = parsedItem.system.quantity;
+                            if ('equipped' in parsedItem.system) baseData.system.equipped = parsedItem.system.equipped;
+                            if ('carried' in parsedItem.system) baseData.system.carried = parsedItem.system.carried;
+                            if ('masterwork' in parsedItem.system) baseData.system.masterwork = parsedItem.system.masterwork;
+                            if ('enh' in parsedItem.system) baseData.system.enh = parsedItem.system.enh;
+                            if ('levels' in parsedItem.system) baseData.system.levels = parsedItem.system.levels;
+                            if ('hp' in parsedItem.system) baseData.system.hp = parsedItem.system.hp;
+                            if ('actionType' in parsedItem.system && parsedItem.type === "attack") baseData.system.actionType = parsedItem.system.actionType;
+                        }
+                        
+                        // Retain original parsed name to keep "+1" etc.
+                        baseData.name = parsedItem.name;
+                        itemDataToCreate = baseData;
+                    } else {
+                        console.log(`D35E Importer | No compendium match for '${parsedItem.name}', creating from raw parse.`);
+                    }
+
+                    finalItemsToCreate.push(itemDataToCreate);
+                }
+
+                console.log(`D35E Importer | Creating ${finalItemsToCreate.length} embedded items...`);
+                await targetActor.createEmbeddedDocuments("Item", finalItemsToCreate);
                 console.log("D35E Importer | Embedded items created successfully.");
             } catch (err) {
                 console.error("D35E Importer | Failed to create some embedded items:", err);
-                ui.notifications.warn("Some items (feats/classes) could not be created. Check the console for details.");
+                ui.notifications.warn("Some items (feats/classes/gear) could not be created. Check the console for details.");
             }
         }
 
