@@ -195,7 +195,7 @@ class D35EImporterDialog extends Application {
                     }
 
                     if (foundItemDoc) {
-                        console.log(`D35E Importer | Matched '${parsedItem.name}' to item '${foundItemDoc.name}'.`);
+                        console.log(`D35E Importer | Matched '${parsedItem.name}' to item '${foundItemDoc.name}' (type: ${foundItemDoc.type}).`);
                         const baseData = foundItemDoc.toObject();
                         delete baseData._id;
 
@@ -206,13 +206,18 @@ class D35EImporterDialog extends Application {
                             if ('carried' in parsedItem.system) baseData.system.carried = parsedItem.system.carried;
                             if ('masterwork' in parsedItem.system) baseData.system.masterwork = parsedItem.system.masterwork;
                             if ('enh' in parsedItem.system) baseData.system.enh = parsedItem.system.enh;
-                            if ('levels' in parsedItem.system) baseData.system.levels = parsedItem.system.levels;
+                            // Only override levels for non-template class items
+                            if ('levels' in parsedItem.system && baseData.system?.classType !== "template") {
+                                baseData.system.levels = parsedItem.system.levels;
+                            }
                             if ('hp' in parsedItem.system) baseData.system.hp = parsedItem.system.hp;
                             if ('actionType' in parsedItem.system && parsedItem.type === "attack") baseData.system.actionType = parsedItem.system.actionType;
                         }
                         
-                        // Retain original parsed name to keep "+1" etc.
-                        baseData.name = parsedItem.name;
+                        // For templates, keep the SRD compendium name; for others retain parsed name (+1 etc.)
+                        if (baseData.system?.classType !== "template") {
+                            baseData.name = parsedItem.name;
+                        }
                         itemDataToCreate = baseData;
                     } else {
                         console.log(`D35E Importer | No compendium match for '${parsedItem.name}', creating from raw parse.`);

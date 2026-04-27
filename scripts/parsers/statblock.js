@@ -320,34 +320,41 @@ class StatblockParser {
             }
 
             // ---- Extract Template from parentheses on class line ----
-            // e.g. "Cleric 1 Wizard 1 (Half-Dragon Template +3)"
+            // Hero Lab format: "(Half-Dragon Template +3)" → SRD name is "Half-Dragon"
             if (classLine) {
                 const templateParenMatch = classLine.match(/\(([^)]*Template[^)]*)\)/i);
                 if (templateParenMatch) {
                     const templateStr = templateParenMatch[1].trim();
-                    // Extract name and optional level: "Half-Dragon Template +3" or "Lich Template"
+                    // Extract name and optional CR adjustment: "Half-Dragon Template +3"
                     const tMatch = templateStr.match(/^(.+?)(?:\s+\+?(\d+))?$/);
                     if (tMatch) {
-                        const tName = tMatch[1].trim();
+                        let tRawName = tMatch[1].trim();
                         const tLevel = tMatch[2] ? parseInt(tMatch[2]) : 0;
-                        console.log(`D35E Importer | Found template in parentheses: ${tName} (level adj: ${tLevel})`);
+                        // Strip the word "Template" to match SRD naming (e.g. "Half-Dragon Template" → "Half-Dragon")
+                        const tName = tRawName.replace(/\s*Template\s*/i, '').trim();
+                        
+                        // Look up in classIndex for SRD template data
+                        const tData = classIndex?.get(tName.toLowerCase()) || null;
+                        const displayName = tData ? tName : tRawName; // Use SRD name if found
+                        
+                        console.log(`D35E Importer | Found template: ${displayName} (CR adj: +${tLevel}, source: ${tData ? 'compendium' : 'fallback'})`);
                         updateData.items.push({
-                            name: tName,
+                            name: displayName,
                             type: "class",
                             system: {
                                 levels: 1,
                                 classType: "template",
-                                hd: 0,
-                                hp: 0,
-                                bab: "~",
-                                skillsPerLevel: 0,
+                                hd: tData?.hd || 0,
+                                hp: tData?.hp || 0,
+                                bab: tData?.bab || "~",
+                                skillsPerLevel: tData?.skillsPerLevel || 0,
                                 savingThrows: {
-                                    fort: { value: "low" },
-                                    ref: { value: "low" },
-                                    will: { value: "low" }
+                                    fort: { value: tData?.fort || "low" },
+                                    ref: { value: tData?.ref || "low" },
+                                    will: { value: tData?.will || "low" }
                                 },
                                 crOffset: tLevel,
-                                description: { value: `Template: ${tName} (CR adjustment +${tLevel})` }
+                                description: { value: `Template: ${displayName} (CR adjustment +${tLevel})` }
                             }
                         });
                     }
