@@ -56,7 +56,7 @@ class D35EImporterDialog extends Application {
                     const xmlString = await zip.file(xmlFiles[0]).async("string");
                     updateData = await HeroLabXMLParser.parse(xmlString);
                 } else {
-                    // Read as text for JSON/XML
+                    // Read as text for JSON/XML/HTML/TXT
                     const text = await new Promise((resolve) => {
                         const reader = new FileReader();
                         reader.onload = () => resolve(reader.result);
@@ -67,6 +67,8 @@ class D35EImporterDialog extends Application {
                         updateData = await HeroLabXMLParser.parse(text);
                     } else if (extension === 'json') {
                         updateData = JSON.parse(text);
+                    } else if (extension === 'txt' || extension === 'html' || extension === 'htm') {
+                        updateData = await StatblockParser.parse(text);
                     } else {
                         throw new Error(`Unsupported file extension: ${extension}`);
                     }
@@ -85,9 +87,12 @@ class D35EImporterDialog extends Application {
             try {
                 ui.notifications.info(game.i18n.localize('D35EImporter.ImportStarted'));
                 let updateData;
-                if (jsonText.trim().startsWith('<')) {
-                    // Assume XML
+                if (jsonText.trim().startsWith('<character') || jsonText.includes('<?xml')) {
+                    // Assume Hero Lab XML
                     updateData = await HeroLabXMLParser.parse(jsonText);
+                } else if (jsonText.includes('Init') || jsonText.includes('<html')) {
+                    // Assume HTML or Text Statblock
+                    updateData = await StatblockParser.parse(jsonText);
                 } else {
                     // Assume JSON
                     updateData = JSON.parse(jsonText);

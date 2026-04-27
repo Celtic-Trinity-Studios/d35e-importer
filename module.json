@@ -30,6 +30,7 @@
     "scripts/lib/pdf.min.js",
     "scripts/parsers/herolab-xml.js",
     "scripts/parsers/pdf-text.js",
+    "scripts/parsers/statblock.js",
     "scripts/main.js",
     "scripts/importer.js"
   ],
