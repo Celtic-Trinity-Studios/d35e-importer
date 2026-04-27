@@ -56,6 +56,19 @@ class StatblockParser {
         'psychic warrior':{ hd: 8,  hp: 8,  bab: 'med',  fort: 'high', ref: 'low',  will: 'low',  skillsPerLevel: 2 },
         'wilder':     { hd: 6,  hp: 6,  bab: 'med',  fort: 'low',  ref: 'low',  will: 'high', skillsPerLevel: 4 },
         'soulknife':  { hd: 10, hp: 10, bab: 'med',  fort: 'low',  ref: 'high', will: 'low',  skillsPerLevel: 4 },
+        'archivist':  { hd: 6,  hp: 6,  bab: 'med',  fort: 'low',  ref: 'low',  will: 'high', skillsPerLevel: 4 },
+        'beguiler':   { hd: 6,  hp: 6,  bab: 'med',  fort: 'low',  ref: 'low',  will: 'high', skillsPerLevel: 6 },
+        'dragon shaman':{ hd: 10, hp: 10, bab: 'med',  fort: 'high', ref: 'low',  will: 'high', skillsPerLevel: 2 },
+        'factotum':   { hd: 8,  hp: 8,  bab: 'med',  fort: 'high', ref: 'high', will: 'high', skillsPerLevel: 6 },
+        'marshal':    { hd: 8,  hp: 8,  bab: 'med',  fort: 'high', ref: 'low',  will: 'high', skillsPerLevel: 4 },
+        'healer':     { hd: 8,  hp: 8,  bab: 'med',  fort: 'high', ref: 'low',  will: 'high', skillsPerLevel: 4 },
+        'spellthief': { hd: 6,  hp: 6,  bab: 'med',  fort: 'low',  ref: 'high', will: 'high', skillsPerLevel: 4 },
+        'totemist':   { hd: 8,  hp: 8,  bab: 'med',  fort: 'high', ref: 'low',  will: 'low',  skillsPerLevel: 4 },
+        'incarnate':  { hd: 6,  hp: 6,  bab: 'med',  fort: 'high', ref: 'low',  will: 'high', skillsPerLevel: 4 },
+        'soulborn':   { hd: 10, hp: 10, bab: 'high', fort: 'high', ref: 'low',  will: 'low',  skillsPerLevel: 2 },
+        'crusader':   { hd: 10, hp: 10, bab: 'high', fort: 'high', ref: 'low',  will: 'low',  skillsPerLevel: 4 },
+        'swordsage':  { hd: 8,  hp: 8,  bab: 'med',  fort: 'low',  ref: 'high', will: 'high', skillsPerLevel: 6 },
+        'warblade':   { hd: 12, hp: 12, bab: 'high', fort: 'high', ref: 'low',  will: 'low',  skillsPerLevel: 4 },
     };
 
     // Known D&D 3.5e races
@@ -220,14 +233,17 @@ class StatblockParser {
             }
 
             // ---- Find the Race/Class/Level line ----
-            // e.g., "Male Human Wizard 1" or "Female Half-Elf Ranger 3/Rogue 2"
+            // e.g., "Male Human Wizard 1" or "Male Human Archivist 3 Rogue 1"
             let classLine = '';
             let classLineIdx = -1;
             const classNames = Object.keys(StatblockParser.CLASS_DATA);
-            const classRegex = new RegExp('\\b(' + classNames.map(c => c.replace(/\s+/g, '\\s+')).join('|') + ')\\b\\s+\\d+', 'i');
+            // Match known classes OR any capitalized word followed by a number
+            const knownClassRegex = new RegExp('\\b(' + classNames.map(c => c.replace(/\s+/g, '\\s+')).join('|') + ')\\b\\s+\\d+', 'i');
+            // Fallback: any line with a word followed by a space and digit (e.g. "Archivist 3")
+            const genericClassRegex = /\b[A-Z][a-z]+\s+\d+/;
 
             for (let i = 0; i < Math.min(lines.length, 8); i++) {
-                if (classRegex.test(lines[i])) {
+                if (knownClassRegex.test(lines[i]) || genericClassRegex.test(lines[i])) {
                     classLine = lines[i];
                     classLineIdx = i;
                     break;
@@ -282,7 +298,9 @@ class StatblockParser {
 
             // ---- Extract Classes and Levels ----
             let totalLevel = 0;
+            const foundClasses = new Set();
             if (classLine) {
+                // First pass: match known classes from CLASS_DATA
                 for (const [className, cData] of Object.entries(StatblockParser.CLASS_DATA)) {
                     const cRegex = new RegExp('\\b' + className.replace(/\s+/g, '\\s+') + '\\s+(\\d+)', 'i');
                     const cMatch = classLine.match(cRegex);
@@ -290,6 +308,7 @@ class StatblockParser {
                         const level = parseInt(cMatch[1]);
                         totalLevel += level;
                         const displayName = className.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                        foundClasses.add(displayName.toLowerCase());
                         updateData.items.push({
                             name: displayName,
                             type: "class",
@@ -306,6 +325,51 @@ class StatblockParser {
                                     will: { value: cData.will }
                                 },
                                 description: { value: `${displayName} level ${level}` }
+                            }
+                        });
+                    }
+                }
+                
+                // Second pass: catch any remaining "ClassName Number" patterns not already matched
+                // This handles classes not in CLASS_DATA (e.g. prestige classes, 3rd-party)
+                let remaining = classLine;
+                // Strip gender, race, alignment, size, creature type
+                remaining = remaining.replace(/^(Male|Female)\s+/i, '');
+                for (const race of StatblockParser.RACES) {
+                    remaining = remaining.replace(new RegExp('\\b' + race.replace(/-/g, '[-\\s]?') + '\\b', 'i'), '');
+                }
+                remaining = remaining.replace(/\b(LG|NG|CG|LN|TN|CN|LE|NE|CE)\b/g, '');
+                remaining = remaining.replace(/\b(Fine|Diminutive|Tiny|Small|Medium|Large|Huge|Gargantuan|Colossal)\b/gi, '');
+                remaining = remaining.replace(/\b(Humanoid|Outsider|Aberration|Animal|Construct|Dragon|Fey|Giant|Magical Beast|Monstrous Humanoid|Ooze|Plant|Undead|Vermin|Elemental)\b/gi, '');
+                remaining = remaining.trim();
+                
+                // Match all "Word Number" or "Word Word Number" patterns
+                const unknownClassRegex = /\b([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)*)\s+(\d+)\b/g;
+                let ucMatch;
+                while ((ucMatch = unknownClassRegex.exec(remaining)) !== null) {
+                    const ucName = ucMatch[1].trim();
+                    const ucLevel = parseInt(ucMatch[2]);
+                    if (foundClasses.has(ucName.toLowerCase())) continue;
+                    if (ucLevel > 0 && ucLevel <= 40) {
+                        totalLevel += ucLevel;
+                        foundClasses.add(ucName.toLowerCase());
+                        console.log(`D35E Importer | Found unknown class: ${ucName} ${ucLevel} (using defaults)`);
+                        updateData.items.push({
+                            name: ucName,
+                            type: "class",
+                            system: {
+                                levels: ucLevel,
+                                classType: "base",
+                                hd: 6,
+                                hp: 6,
+                                bab: "med",
+                                skillsPerLevel: 4,
+                                savingThrows: {
+                                    fort: { value: "low" },
+                                    ref: { value: "low" },
+                                    will: { value: "high" }
+                                },
+                                description: { value: `${ucName} level ${ucLevel} (auto-detected)` }
                             }
                         });
                     }
