@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-$version = "v1.6.6"
+$version = "v1.6.7"
 
 # Get git credentials
 $credInput = @"
@@ -24,7 +24,7 @@ $headers = @{
 $body = @{
     tag_name = $version
     name = "Release $version"
-    body = "Fix corrupted actor - remove recursive:false"
+    body = "Fix HP double-counting CON bonus; add SRD lookup for natural attacks (Claw, Bite, etc.)"
 } | ConvertTo-Json
 
 Write-Host "Creating release..."
