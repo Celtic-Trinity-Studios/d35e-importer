@@ -627,6 +627,17 @@ class StatblockParser {
             }
 
             // ---- Skills ----
+            // Skill ability associations for calculating actual ranks
+            const SKILL_ABILITY = {
+                'apr':'int','ath':'wis','blc':'dex','blf':'cha','clm':'str','coc':'con',
+                'crf':'int','dsc':'int','dip':'cha','dev':'int','dis':'cha','esc':'dex',
+                'fog':'int','gat':'cha','han':'cha','hea':'wis','hid':'dex','int':'cha',
+                'jmp':'str','kar':'int','kdu':'int','ken':'int','kge':'int','khi':'int',
+                'klo':'int','kna':'int','kno':'int','kpl':'int','kre':'int','lis':'wis',
+                'mos':'dex','opl':'dex','prf':'cha','pro':'wis','rid':'dex','src':'int',
+                'sen':'wis','soh':'dex','spl':'int','spt':'wis','sur':'wis','swm':'str',
+                'tmb':'dex','umd':'cha','uro':'dex'
+            };
             const skillsMatch = linesText.match(/Skills:?\s+(.+?)(?=\n(?:Feats|Languages|Possessions|Special|SQ|$)|\n\n)/is);
             if (skillsMatch) {
                 const skillsStr = skillsMatch[1].replace(/\n/g, ', ');
@@ -636,7 +647,7 @@ class StatblockParser {
                         const entryMatch = entry.match(/^(.+?)\s+([+-]?\d+)$/);
                         if (!entryMatch) continue;
                         const skillName = entryMatch[1].trim().toLowerCase();
-                        const skillMod = parseInt(entryMatch[2]);
+                        const skillTotal = parseInt(entryMatch[2]);
                         let code = StatblockParser.SKILL_MAP[skillName];
                         if (!code) {
                             for (const [key, val] of Object.entries(StatblockParser.SKILL_MAP)) {
@@ -646,7 +657,15 @@ class StatblockParser {
                             }
                         }
                         if (code) {
-                            updateData.system.skills[code] = { points: Math.max(0, skillMod) };
+                            // Subtract the relevant ability modifier to get actual skill points
+                            let abilityMod = 0;
+                            const abilityKey = SKILL_ABILITY[code];
+                            if (abilityKey && updateData.system.abilities[abilityKey]) {
+                                const score = updateData.system.abilities[abilityKey].value || 10;
+                                abilityMod = Math.floor((score - 10) / 2);
+                            }
+                            const points = Math.max(0, skillTotal - abilityMod);
+                            updateData.system.skills[code] = { points: points };
                         }
                     }
                 }
@@ -717,11 +736,46 @@ class StatblockParser {
             }
 
             // ---- Ranged Attacks ----
-            const rangedMatch = linesText.match(/Ranged:?\s+(.+?)(?=\n(?:Space|Special|Spell-Like|Spells|Abilities|Str\b)|$)/is);
+            const rangedMatch = linesText.match(/Ranged(?:\s+weapon)?:?\s+(.+?)(?=\n(?:Space|Special|Spell-Like|Spells|Abilities|Str\b|Base\s+Atk|Atk\s+Options|Combat\s+Gear)|$)/is);
             if (rangedMatch) {
                 const rangedAttacks = StatblockParser._parseAttackLine(rangedMatch[1], 'rwak');
                 for (const atk of rangedAttacks) {
                     updateData.items.push(atk);
+                }
+            }
+
+            // ---- Spells ----
+            // Parse "Cleric Spells Prepared (CL 1, ...):" and "Wizard Spells Prepared (CL 1, ...):"
+            const spellSectionRegex = /(\w[\w\s]*?)\s+Spells\s+Prepared\s*\(CL\s+(\d+)[^)]*\):?\s*((?:(?!\w[\w\s]*?\s+Spells\s+Prepared).)*)/gis;
+            let spellSection;
+            while ((spellSection = spellSectionRegex.exec(linesText)) !== null) {
+                const casterClass = spellSection[1].trim();
+                const casterLevel = parseInt(spellSection[2]);
+                const spellBlock = spellSection[3];
+                
+                // Parse each spell level line: "1 (DC 13, 2/day) - Bless, Bless Water, Make Whole"
+                const spellLineRegex = /^\s*(?:\(?(\d+)\)?)?\s*\(DC\s+(\d+)(?:,\s*(\d+)\/day)?\)\s*-\s*(.+)$/gm;
+                let spellLine;
+                while ((spellLine = spellLineRegex.exec(spellBlock)) !== null) {
+                    const spellLevel = parseInt(spellLine[1] || '0');
+                    const spellDC = parseInt(spellLine[2]);
+                    const perDay = spellLine[3] ? parseInt(spellLine[3]) : null;
+                    const spellNames = spellLine[4].split(',').map(s => s.trim()).filter(s => s.length > 0);
+                    
+                    for (const spellName of spellNames) {
+                        if (!spellName || spellName.length > 80) continue;
+                        updateData.items.push({
+                            name: spellName,
+                            type: "spell",
+                            system: {
+                                level: spellLevel,
+                                school: "",
+                                spellDuration: {},
+                                spellArea: {},
+                                description: { value: `${casterClass} spell (CL ${casterLevel}, DC ${spellDC})` }
+                            }
+                        });
+                    }
                 }
             }
 
@@ -778,8 +832,10 @@ class StatblockParser {
      */
     static _parseAttackLine(text, actionType) {
         const items = [];
-        // Split on " or " at the top level (not inside parens)
-        const attackStrings = text.split(/\s+or\s+/i);
+        // Strip template/source parentheticals like "(Half-Dragon Template)" from attack text
+        let cleanText = text.replace(/\([^)]*Template[^)]*\)/gi, '').replace(/\s{2,}/g, ' ');
+        // Split on " and " or " or " to separate individual attacks
+        const attackStrings = cleanText.split(/\s+(?:and|or)\s+/i);
 
         for (const atkStr of attackStrings) {
             const trimmed = atkStr.trim().replace(/\n/g, ' ');
