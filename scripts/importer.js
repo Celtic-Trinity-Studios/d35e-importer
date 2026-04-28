@@ -143,11 +143,11 @@ class D35EImporterDialog extends Application {
         if (updateData.system) safeUpdateData.system = updateData.system;
 
         // Create embedded items (classes, feats, special abilities)
+        let finalItemsToCreate = [];
         if (embeddedItems.length > 0) {
             try {
                 console.log(`D35E Importer | Resolving ${embeddedItems.length} items from world and compendiums...`);
                 
-                const finalItemsToCreate = [];
                 // Load compendium indexes once for performance
                 const packs = game.packs.filter(p => p.metadata.type === "Item");
                 const packIndexes = [];
@@ -315,11 +315,46 @@ class D35EImporterDialog extends Application {
         }
 
         // Apply actor stats LAST — after items (including templates) are created.
-        // This ensures template bonuses don't double-apply since the statblock
-        // already has final stats including all template modifications.
+        // When a template is present, the statblock shows TOTAL ability scores
+        // (base + template bonuses). We need to subtract template bonuses to get
+        // the BASE values, since D35E auto-applies template changes on top.
         if (Object.keys(safeUpdateData).length > 0) {
+            // Check for template items and subtract their ability bonuses
+            for (const itemData of finalItemsToCreate || []) {
+                if (itemData.system?.classType === "template" && itemData.system?.changes) {
+                    const changes = itemData.system.changes;
+                    console.log(`D35E Importer | Template '${itemData.name}' has ${changes.length} changes, adjusting base ability scores...`);
+                    for (const change of changes) {
+                        // D35E change format: [formula, target, subTarget, modifier]
+                        // e.g. ["8", "ability", "str", "untyped"] or array-based
+                        let formula, target, subTarget;
+                        if (Array.isArray(change)) {
+                            [formula, target, subTarget] = change;
+                        } else if (typeof change === 'object') {
+                            formula = change.formula || change.value || change[0];
+                            target = change.target || change[1];
+                            subTarget = change.subTarget || change[2];
+                        }
+                        if (!formula || !target || !subTarget) continue;
+                        
+                        // Only process ability score changes
+                        const abilityKeys = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+                        if (target === 'ability' && abilityKeys.includes(subTarget)) {
+                            const bonus = parseInt(formula) || 0;
+                            if (bonus !== 0 && safeUpdateData.system?.abilities?.[subTarget]) {
+                                const old = safeUpdateData.system.abilities[subTarget].value;
+                                safeUpdateData.system.abilities[subTarget].value -= bonus;
+                                safeUpdateData.system.abilities[subTarget].total -= bonus;
+                                safeUpdateData.system.abilities[subTarget].mod = Math.floor((safeUpdateData.system.abilities[subTarget].value - 10) / 2);
+                                console.log(`D35E Importer | Adjusted ${subTarget.toUpperCase()}: ${old} (total) → ${safeUpdateData.system.abilities[subTarget].value} (base), template adds +${bonus}`);
+                            }
+                        }
+                    }
+                }
+            }
+            
             await targetActor.update(foundry.utils.flattenObject(safeUpdateData));
-            console.log("D35E Importer | Actor base data set (post-items):", safeUpdateData);
+            console.log("D35E Importer | Actor base data set (post-items, template-adjusted):", safeUpdateData);
         }
 
         ui.notifications.info(game.i18n.localize('D35EImporter.ImportSuccess'));
