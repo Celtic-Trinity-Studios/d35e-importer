@@ -130,6 +130,9 @@ class D35EImporterDialog extends Application {
         const embeddedItems = updateData.items || [];
         delete updateData.items;
 
+        // Stash the raw parsed HP from the statblock for later use
+        const parsedTotalHP = updateData.system?.attributes?.hp?.value || null;
+
         if (!targetActor) {
             targetActor = await Actor.create({
                 name: updateData.name || "Imported Character",
@@ -171,21 +174,47 @@ class D35EImporterDialog extends Application {
                     searchName = searchName.replace(/masterwork\s+/i, ''); // remove masterwork
                     searchName = searchName.replace(/mwk\s+/i, '').trim();
 
+                    // For natural/monster attacks (Claw, Bite, etc.), strip multiplier
+                    // suffixes like "X2", "x3" so "Claw X2" matches "Claw" in the SRD
+                    let naturalSearchName = searchName.replace(/\s+[xX]\d+$/i, '').trim();
+                    // Also try singular form: "Claws" -> "Claw"
+                    let singularSearchName = naturalSearchName.endsWith('s') 
+                        ? naturalSearchName.slice(0, -1) : null;
+
                     // 1. Search World Items
                     foundItemDoc = game.items.find(i => i.name.toLowerCase() === searchName.toLowerCase());
+                    // Try natural attack name variants
+                    if (!foundItemDoc && naturalSearchName !== searchName) {
+                        foundItemDoc = game.items.find(i => i.name.toLowerCase() === naturalSearchName.toLowerCase());
+                    }
+                    if (!foundItemDoc && singularSearchName) {
+                        foundItemDoc = game.items.find(i => i.name.toLowerCase() === singularSearchName.toLowerCase());
+                    }
 
                     // 2. Search Compendiums
                     if (!foundItemDoc) {
+                        // Build list of name variants to try
+                        const searchVariants = [searchName.toLowerCase()];
+                        if (naturalSearchName.toLowerCase() !== searchName.toLowerCase()) {
+                            searchVariants.push(naturalSearchName.toLowerCase());
+                        }
+                        if (singularSearchName) {
+                            searchVariants.push(singularSearchName.toLowerCase());
+                        }
+
                         for (const {pack, index} of packIndexes) {
-                            const entry = index.find(e => e.name.toLowerCase() === searchName.toLowerCase());
-                            if (entry) {
-                                try {
-                                    foundItemDoc = await pack.getDocument(entry._id);
-                                } catch(e) {
-                                    console.warn(`D35E Importer | Could not fetch '${entry.name}' from pack ${pack.metadata.id}: ${e.message}`);
+                            for (const variant of searchVariants) {
+                                const entry = index.find(e => e.name.toLowerCase() === variant);
+                                if (entry) {
+                                    try {
+                                        foundItemDoc = await pack.getDocument(entry._id);
+                                    } catch(e) {
+                                        console.warn(`D35E Importer | Could not fetch '${entry.name}' from pack ${pack.metadata.id}: ${e.message}`);
+                                    }
+                                    if (foundItemDoc) break;
                                 }
-                                if (foundItemDoc) break;
                             }
+                            if (foundItemDoc) break;
                         }
                     }
 
@@ -268,20 +297,82 @@ class D35EImporterDialog extends Application {
                         const currentLevelUpData = foundry.utils.duplicate(targetActor.system.details.levelUpData || []);
                         console.log("D35E Importer | Current levelUpData from actor:", currentLevelUpData);
                         
-                        let idx = 0;
+                        // ---- HP Distribution ----
+                        // The statblock HP includes CON bonus. D35E adds CON bonus automatically,
+                        // so we must subtract it to get the raw die-roll HP pool.
+                        // Formula: rawDieHP = totalHP - (CON_mod × totalHD)
+                        let rawDieHP = null;
+                        if (parsedTotalHP !== null) {
+                            const conScore = safeUpdateData.system?.abilities?.con?.value || targetActor.system?.abilities?.con?.value || 10;
+                            const conMod = Math.floor((conScore - 10) / 2);
+                            rawDieHP = parsedTotalHP - (conMod * totalLevel);
+                            // Sanity: rawDieHP should be at least totalLevel (minimum 1 HP per die)
+                            rawDieHP = Math.max(rawDieHP, totalLevel);
+                            console.log(`D35E Importer | HP breakdown: statblock=${parsedTotalHP}, CON mod=${conMod}, CON contribution=${conMod * totalLevel}, raw die HP=${rawDieHP}`);
+                        }
+
+                        // Build a list of {classId, className, classImg, hd} per level
+                        // so we can distribute HP proportionally by HD size
+                        const levelEntries = [];
                         for (const cls of classItems) {
                             const lvl = desiredLevels.get(cls.id) || 1;
+                            const hd = cls.system?.hd || 8;
                             for (let i = 0; i < lvl; i++) {
-                                if (idx < currentLevelUpData.length) {
-                                    currentLevelUpData[idx].classId = cls.id;
-                                    currentLevelUpData[idx].class = cls.name;
-                                    currentLevelUpData[idx].classImage = cls.img || null;
-                                    currentLevelUpData[idx].hp = idx === 0
-                                        ? (cls.system?.hp || cls.system?.hd || 8)
-                                        : Math.floor((cls.system?.hd || 8) / 2) + 1;
-                                }
-                                idx++;
+                                levelEntries.push({
+                                    classId: cls.id,
+                                    className: cls.name,
+                                    classImg: cls.img || null,
+                                    hd: hd,
+                                    levelInClass: i  // 0 = first level in this class
+                                });
                             }
+                        }
+
+                        // Calculate HP per level entry
+                        // If we have the raw die HP from the statblock, distribute proportionally.
+                        // Otherwise fall back to max at level 1, average for the rest.
+                        let hpPerLevel = [];
+                        if (rawDieHP !== null && levelEntries.length > 0) {
+                            // Proportional distribution: each level gets a share of rawDieHP
+                            // weighted by its class HD relative to the total HD pool.
+                            const totalHDPool = levelEntries.reduce((sum, e) => sum + e.hd, 0);
+                            let distributed = 0;
+                            for (let i = 0; i < levelEntries.length; i++) {
+                                if (i === levelEntries.length - 1) {
+                                    // Last entry gets the remainder to avoid rounding drift
+                                    hpPerLevel.push(rawDieHP - distributed);
+                                } else {
+                                    const share = Math.round((levelEntries[i].hd / totalHDPool) * rawDieHP);
+                                    // Clamp: at least 1, at most the class HD
+                                    const clamped = Math.max(1, Math.min(share, levelEntries[i].hd));
+                                    hpPerLevel.push(clamped);
+                                    distributed += clamped;
+                                }
+                            }
+                            console.log(`D35E Importer | HP distribution (from statblock): ${hpPerLevel.join(', ')} (sum=${hpPerLevel.reduce((a,b)=>a+b,0)}, target=${rawDieHP})`);
+                        } else {
+                            // Fallback: max at first level, average for the rest
+                            for (let i = 0; i < levelEntries.length; i++) {
+                                const hd = levelEntries[i].hd;
+                                if (i === 0) {
+                                    hpPerLevel.push(hd); // Max at level 1
+                                } else {
+                                    hpPerLevel.push(Math.floor(hd / 2) + 1); // Average
+                                }
+                            }
+                            console.log(`D35E Importer | HP distribution (fallback max/avg): ${hpPerLevel.join(', ')}`);
+                        }
+
+                        // Write the calculated HP values into levelUpData
+                        let idx = 0;
+                        for (let i = 0; i < levelEntries.length; i++) {
+                            if (idx < currentLevelUpData.length) {
+                                currentLevelUpData[idx].classId = levelEntries[i].classId;
+                                currentLevelUpData[idx].class = levelEntries[i].className;
+                                currentLevelUpData[idx].classImage = levelEntries[i].classImg;
+                                currentLevelUpData[idx].hp = hpPerLevel[i];
+                            }
+                            idx++;
                         }
                         
                         // Write back the complete array and restore class levels
@@ -353,6 +444,15 @@ class D35EImporterDialog extends Application {
                 }
             }
             
+            // Remove HP from the actor update — D35E calculates HP automatically
+            // from levelUpData (die rolls per level) + CON modifier.
+            // If we also set the raw statblock HP here (which already includes CON),
+            // D35E would add CON again, resulting in inflated HP.
+            if (safeUpdateData.system?.attributes?.hp) {
+                console.log("D35E Importer | Removing attributes.hp from actor update (will be calculated from levelUpData + CON).");
+                delete safeUpdateData.system.attributes.hp;
+            }
+
             await targetActor.update(foundry.utils.flattenObject(safeUpdateData));
             console.log("D35E Importer | Actor base data set (post-items, template-adjusted):", safeUpdateData);
         }
