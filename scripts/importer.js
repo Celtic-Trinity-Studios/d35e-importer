@@ -137,15 +137,10 @@ class D35EImporterDialog extends Application {
             });
         }
 
-        // Build the actor update data
+        // Build the actor update data (will be applied AFTER items)
         const safeUpdateData = {};
         if (updateData.name) safeUpdateData.name = updateData.name;
         if (updateData.system) safeUpdateData.system = updateData.system;
-        
-        if (Object.keys(safeUpdateData).length > 0) {
-            await targetActor.update(foundry.utils.flattenObject(safeUpdateData));
-            console.log("D35E Importer | Actor base data updated:", safeUpdateData);
-        }
 
         // Create embedded items (classes, feats, special abilities)
         if (embeddedItems.length > 0) {
@@ -317,6 +312,14 @@ class D35EImporterDialog extends Application {
                 console.error("D35E Importer | Failed to create some embedded items:", err);
                 ui.notifications.warn("Some items (feats/classes/gear) could not be created. Check the console for details.");
             }
+        }
+
+        // Apply actor stats LAST — after items (including templates) are created.
+        // This ensures template bonuses don't double-apply since the statblock
+        // already has final stats including all template modifications.
+        if (Object.keys(safeUpdateData).length > 0) {
+            await targetActor.update(foundry.utils.flattenObject(safeUpdateData));
+            console.log("D35E Importer | Actor base data set (post-items):", safeUpdateData);
         }
 
         ui.notifications.info(game.i18n.localize('D35EImporter.ImportSuccess'));

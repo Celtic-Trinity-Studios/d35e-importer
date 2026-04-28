@@ -646,7 +646,7 @@ class StatblockParser {
                             }
                         }
                         if (code) {
-                            updateData.system.skills[code] = { rank: Math.max(0, skillMod), mod: skillMod };
+                            updateData.system.skills[code] = { points: Math.max(0, skillMod) };
                         }
                     }
                 }
